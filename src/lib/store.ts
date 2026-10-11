@@ -18,7 +18,27 @@ class StoreService {
   constructor() {
     this.publishedData = this.loadFromStorage(PUBLISHED_STORAGE_KEY, INITIAL_DATABASE);
     this.draftData = this.loadFromStorage(DRAFT_STORAGE_KEY, this.publishedData);
+    this.initStorageSync();
     this.initSupabaseSync();
+  }
+
+  /**
+   * Mantém o painel de visitante atualizado quando a gestão publica alterações
+   * em outra aba ou janela do mesmo navegador.
+   */
+  private initStorageSync(): void {
+    if (typeof window === 'undefined') return;
+
+    window.addEventListener('storage', (event) => {
+      if (event.key !== PUBLISHED_STORAGE_KEY || !event.newValue) return;
+
+      try {
+        this.publishedData = this.loadFromStorage(PUBLISHED_STORAGE_KEY, INITIAL_DATABASE);
+        this.notify();
+      } catch (error) {
+        console.warn('Não foi possível atualizar o conteúdo publicado:', error);
+      }
+    });
   }
 
   private loadFromStorage(key: string, fallback: AppDatabase): AppDatabase {

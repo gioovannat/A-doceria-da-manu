@@ -274,6 +274,10 @@ export const INITIAL_DATABASE: AppDatabase = {
       active: true,
       featured: true,
       sort_order: 2,
+      requires_batter: true,
+      min_flavors: 1,
+      max_flavors: 1,
+      min_addons: 1,
       batters: [
         { id: 'bat-b1', name: 'Massa Tradicional de Baunilha', description: 'Leve e macia', additional_price: 0, active: true },
         { id: 'bat-b2', name: 'Massa de Chocolate Cacau 50%', description: 'Molhadinha e saborosa', additional_price: 0, active: true },

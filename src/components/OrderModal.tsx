@@ -58,15 +58,31 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     ? selectedProductObj.variations.filter(v => v.active)
     : [];
 
-  // Rules determination
-  const isCake = selectedProductObj?.category === 'bolos' || selectedProductObj?.requires_batter;
-  const requiresBatter = selectedProductObj?.requires_batter ?? (isCake && availableBatters.length > 0);
-  const requires2Flavors = (selectedProductObj?.min_flavors === 2) || (isCake && availableFlavors.length >= 2);
-  const minAddons = selectedProductObj?.min_addons ?? (isCake ? 1 : 0);
+  // As regras vêm do produto e podem ser configuradas pelo painel de gestão.
+  // O cliente só precisa cumprir o que estiver definido para o item selecionado.
+  const requiresBatter = selectedProductObj?.requires_batter ?? false;
+  const requiredFlavors = selectedProductObj?.min_flavors ?? 0;
+  const requires2Flavors = requiredFlavors >= 2;
+  const minAddons = selectedProductObj?.min_addons ?? 0;
+  const hasConfiguredRules = requiresBatter || requiredFlavors > 0 || minAddons > 0;
+  const isSalgados = selectedProductObj?.category === 'salgados';
+  const isCake = !isSalgados && (selectedProductObj?.category === 'bolos' || selectedProductObj?.category === 'bento' || requiresBatter);
 
   // Synchronize options when category changes or modal opens
   useEffect(() => {
     if (!isOpen) return;
+
+    const requestedProduct = products.find((product) => product.name === initialItem);
+    if (requestedProduct && requestedProduct.name !== category) {
+      setCategory(requestedProduct.name);
+      setFlavor1('');
+      setFlavor2('');
+      setBatter('');
+      setSelectedPack('');
+      setSelectedAddons([]);
+      setServings('');
+      return;
+    }
 
     setValidationError(null);
 
@@ -114,10 +130,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       if (!servings) setServings('15 a 20 fatias');
     }
 
-    // 5. Addons default requirement for cakes (ensure at least 1 is pre-selected if required)
-    if (minAddons > 0 && selectedAddons.length === 0 && availableAddons.length > 0) {
-      setSelectedAddons([availableAddons[0].name]);
-    }
   }, [category, isOpen, requires2Flavors, minAddons]);
 
   if (!isOpen) return null;
@@ -156,8 +168,15 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       return;
     }
 
-    if (requires2Flavors && (!flavor1 || !flavor2 || flavor1.trim() === '' || flavor2.trim() === '')) {
-      setValidationError('Por favor, selecione obrigatoriamente os 2 tipos de recheio para o seu bolo decorado.');
+    if (requiredFlavors > 0 && (!flavor1 || flavor1.trim() === '' || (requires2Flavors && (!flavor2 || flavor2.trim() === '')))) {
+      setValidationError(requires2Flavors
+        ? 'Por favor, selecione obrigatoriamente os 2 tipos de recheio definidos para este produto.'
+        : 'Por favor, selecione obrigatoriamente 1 tipo de recheio definido para este produto.');
+      return;
+    }
+
+    if (isSalgados && (!servings || servings.trim() === '')) {
+      setValidationError('Por favor, escolha obrigatoriamente meio cento ou cento de salgados.');
       return;
     }
 
@@ -261,7 +280,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               <span>1. Escolha o Produto</span>
               {isCake && (
                 <span className="text-[10px] text-[#D81E5B] font-semibold">
-                  Massa + 2 Recheios + Mín. 1 Adicional
+                  Massa + Recheio + Mín. 1 Adicional
                 </span>
               )}
             </label>
@@ -280,7 +299,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </div>
 
           {/* 2. Tipo de Massa do Bolo (OBRIGATÓRIO) */}
-          {availableBatters.length > 0 && (
+          {!isSalgados && availableBatters.length > 0 && (
             <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-2">
               <label className="block text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
@@ -310,12 +329,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           )}
 
           {/* 3. Recheios do Bolo (2 TIPOS OBRIGATORIAMENTE OU 1 TIPO) */}
-          {availableFlavors.length > 0 && (
+          {!isSalgados && availableFlavors.length > 0 && (
             <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-3">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-[#D81E5B]" />
-                  3. {requires2Flavors ? 'Sabores & Recheios (2 Tipos Obrigatórios)' : 'Recheio / Sabor'}
+                  3. {requires2Flavors ? 'Sabores & Recheios (2 Tipos Obrigatórios)' : 'Recheio / Sabor (Obrigatório)'}
                 </label>
                 <span className="text-[10px] font-extrabold uppercase bg-[#FFF0F4] text-[#B8134B] border border-[#FAD0DE] px-2 py-0.5 rounded-full">
                   {requires2Flavors ? '* 2 Recheios Obrigatórios' : '* Obrigatório'}
@@ -384,13 +403,24 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             </div>
           )}
 
-          {/* 4. Tamanho / Variação ou Fatias */}
+          {/* 4. Quantidade / Tamanho / Variação */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider">
-                4. Tamanho / Opção
+                {isSalgados ? '4. Quantidade de Salgados (Obrigatória)' : '4. Tamanho / Opção'}
               </label>
-              {availableVariations.length > 0 ? (
+              {isSalgados ? (
+                <select
+                  value={servings}
+                  required
+                  onChange={(e) => setServings(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-[#FAD0DE] bg-[#FFFDFC] text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] cursor-pointer"
+                >
+                  <option value="">Selecione a quantidade</option>
+                  <option value="Meio cento de salgados">Meio cento de salgados</option>
+                  <option value="Cento de salgados">Cento de salgados</option>
+                </select>
+              ) : availableVariations.length > 0 ? (
                 <select
                   value={servings}
                   onChange={(e) => setServings(e.target.value)}
@@ -433,7 +463,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </div>
 
           {/* 5. Packaging (Particular do produto selecionado) */}
-          {availablePackaging.length > 0 && (
+          {!isSalgados && availablePackaging.length > 0 && (
             <div>
               <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider flex items-center justify-between">
                 <span>6. Opção de Embalagem</span>
@@ -454,7 +484,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           )}
 
           {/* 6. Adicionais & Opcionais (NO MÍNIMO 1 OBRIGATÓRIO PARA BOLO) */}
-          {availableAddons.length > 0 && (
+          {!isSalgados && availableAddons.length > 0 && (
             <div className={`p-4 rounded-2xl border space-y-2.5 transition-colors ${
               minAddons > 0 && selectedAddons.length < minAddons 
                 ? 'bg-rose-50/70 border-rose-300' 
@@ -505,11 +535,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           : 'bg-white border-[#FAD0DE] text-[#6B4651] hover:border-[#D81E5B]'
                       }`}
                     >
-                      <div className="flex items-center gap-1.5">
-                        <Check className={`w-3.5 h-3.5 ${isChecked ? 'opacity-100 text-[#D81E5B]' : 'opacity-0'}`} />
-                        <span>{add.name}</span>
-                      </div>
-                      <span className="font-bold">+R${add.price}</span>
+  <div className="flex items-center gap-2 min-w-0 text-left">
+  <Check className={`w-3.5 h-3.5 shrink-0 ${isChecked ? 'opacity-100 text-[#D81E5B]' : 'opacity-0'}`} />
+  {add.image ? (
+  <img src={add.image} alt={`Imagem de ${add.name}`} className="w-12 h-12 rounded-lg object-cover border border-[#FAD0DE] shrink-0" />
+  ) : (
+  <div className="w-12 h-12 rounded-lg bg-[#FFF0F4] border border-dashed border-[#F8B4C9] flex items-center justify-center text-[9px] text-[#B8134B] text-center shrink-0">Sem foto</div>
+  )}
+  <span className="truncate">{add.name}</span>
+  </div>
+  <span className="font-bold whitespace-nowrap">+R${add.price}</span>
                     </button>
                   );
                 })}

@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { Logo } from '../Logo';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
-import { auth, DEFAULT_ADMIN } from '../../lib/auth';
+import { auth } from '../../lib/auth';
 import { router } from '../../lib/router';
 import { ADMIN_ROUTES } from '../../config/admin';
-import { Lock, Mail, KeyRound, AlertCircle, Sparkles } from 'lucide-react';
+import { Lock, Mail, KeyRound, AlertCircle } from 'lucide-react';
 
 export const AdminLogin: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -30,11 +30,6 @@ export const AdminLogin: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fillQuickCredentials = (adminEmail: string, pass: string) => {
-    setEmail(adminEmail);
-    setPassword(pass);
   };
 
   return (
@@ -98,32 +93,6 @@ export const AdminLogin: React.FC = () => {
             Acessar Painel
           </Button>
         </form>
-
-        {/* Quick test credentials assistant */}
-        <div className="mt-8 pt-6 border-t border-[#FEE7EF] text-center">
-          <p className="text-[11px] font-semibold text-[#8C5D6C] mb-2">
-            Acesso Rápido para Configuração:
-          </p>
-          <div className="flex items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => fillQuickCredentials(DEFAULT_ADMIN.email, 'manu@2026')}
-              className="text-[11px] text-[#D81E5B] bg-[#FFF0F4] hover:bg-[#FDE2EC] px-3 py-1.5 rounded-xl border border-[#FAD0DE] font-semibold transition-colors cursor-pointer"
-            >
-              Manu (Admin)
-            </button>
-            <button
-              type="button"
-              onClick={() => fillQuickCredentials('editor@adoceriadamanu.com.br', 'editor@2026')}
-              className="text-[11px] text-[#7A505D] bg-[#FFF8FA] hover:bg-[#FFF0F4] px-3 py-1.5 rounded-xl border border-[#FAD0DE] font-semibold transition-colors cursor-pointer"
-            >
-              Equipe (Editor)
-            </button>
-          </div>
-          <p className="text-[10px] text-[#A67887] mt-3">
-            Também compatível com Supabase Auth após configuração das variáveis de ambiente.
-          </p>
-        </div>
 
       </div>
     </div>

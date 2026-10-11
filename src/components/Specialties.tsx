@@ -5,7 +5,7 @@ import { store } from '../lib/store';
 import { generateWhatsAppUrl } from '../lib/whatsapp';
 
 interface SpecialtiesProps {
-  onSelectItemForOrder: (itemName: string) => void;
+  onSelectItemForOrder: (itemName: string, itemCategory?: string) => void;
   data?: AppDatabase;
 }
 
@@ -146,7 +146,7 @@ export const Specialties: React.FC<SpecialtiesProps> = ({ onSelectItemForOrder, 
                 {/* Action CTA */}
                 <div className="pt-4 border-t border-[#FEE7EF] flex items-center justify-between gap-3">
                   <button
-                    onClick={() => onSelectItemForOrder(item.title)}
+                    onClick={() => onSelectItemForOrder(item.title, item.category)}
                     className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-[#FFF0F5] hover:bg-[#D81E5B] text-[#A81B4B] hover:text-white font-semibold text-xs tracking-wide border border-[#FAD0DE] hover:border-[#D81E5B] transition-all duration-200 cursor-pointer shadow-2xs group-hover:bg-[#D81E5B] group-hover:text-white"
                   >
                     <MessageCircle className="w-4 h-4" />
