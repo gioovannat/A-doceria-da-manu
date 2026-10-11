@@ -47,16 +47,15 @@ class StoreService {
       if (stored) {
         const parsed = JSON.parse(stored);
         
-        // 1. Process specialties: deduplicate by category and id
+        // 1. Process specialties: a category can contain many catalog items.
         const rawSpecialties: any[] = parsed.specialties && parsed.specialties.length > 0 
           ? parsed.specialties 
           : fallback.specialties;
         
         const dedupedSpecialties: any[] = [];
         for (const spec of rawSpecialties) {
-          const cat = spec.category?.trim().toLowerCase();
           const existingIndex = dedupedSpecialties.findIndex(
-            (s) => s.id === spec.id || (cat && s.category?.toLowerCase() === cat)
+            (s) => s.id === spec.id || (s.slug && spec.slug && s.slug === spec.slug)
           );
           if (existingIndex >= 0) {
             dedupedSpecialties[existingIndex] = { ...dedupedSpecialties[existingIndex], ...spec };
@@ -65,30 +64,29 @@ class StoreService {
           }
         }
         for (const fs of fallback.specialties) {
-          const cat = fs.category?.trim().toLowerCase();
-          const exists = dedupedSpecialties.some((s) => s.id === fs.id || (cat && s.category?.toLowerCase() === cat));
+          const exists = dedupedSpecialties.some((s) => s.id === fs.id || (s.slug && fs.slug && s.slug === fs.slug));
           if (!exists) {
             dedupedSpecialties.push(fs);
           }
         }
 
-        // 2. Process products: deduplicate by category, id and name
+        // 2. Products are unique by identity, never by category: a category may
+        // contain several products (for example, Petit and Bolo Redondo).
         const rawProducts: any[] = parsed.products && parsed.products.length > 0
           ? parsed.products
           : fallback.products;
 
         const dedupedProducts: any[] = [];
         for (const prod of rawProducts) {
-          const cat = prod.category?.trim().toLowerCase();
           const existingIndex = dedupedProducts.findIndex((p) => {
             if (p.id === prod.id) return true;
-            if (cat && p.category && p.category.toLowerCase() === cat) return true;
+            if (p.slug && prod.slug && p.slug === prod.slug) return true;
             if (p.name && prod.name && p.name.trim().toLowerCase() === prod.name.trim().toLowerCase()) return true;
             return false;
           });
 
           const fallbackProd = fallback.products.find(
-            (fp) => fp.id === prod.id || fp.category === prod.category || fp.slug === prod.slug
+            (fp) => fp.id === prod.id || (fp.slug && prod.slug && fp.slug === prod.slug)
           );
 
           const fullProd = {
@@ -116,24 +114,22 @@ class StoreService {
           }
         }
 
-        // Ensure all fallback products categories are represented
+        // Ensure all fallback products are represented without collapsing categories.
         for (const fp of fallback.products) {
-          const cat = fp.category?.trim().toLowerCase();
           const exists = dedupedProducts.some(
-            (p) => p.id === fp.id || (cat && p.category?.toLowerCase() === cat)
+            (p) => p.id === fp.id || (p.slug && fp.slug && p.slug === fp.slug)
           );
           if (!exists) {
             dedupedProducts.push(fp);
           }
         }
 
-        // Align product names with specialties for seamless 1:1 synchronization
+        // Legacy specialty records enrich their matching product only.
         for (const spec of dedupedSpecialties) {
           const prodIndex = dedupedProducts.findIndex(
-            (p) => p.id === spec.id || p.category === spec.category || p.slug === spec.slug
+            (p) => p.id === spec.id || (p.slug && spec.slug && p.slug === spec.slug)
           );
           if (prodIndex >= 0) {
-            dedupedProducts[prodIndex].category = spec.category;
             if (!dedupedProducts[prodIndex].name) {
               dedupedProducts[prodIndex].name = spec.title;
             }

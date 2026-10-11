@@ -11,7 +11,7 @@ interface SpecialtiesProps {
 
 export const Specialties: React.FC<SpecialtiesProps> = ({ onSelectItemForOrder, data }) => {
   const currentData = data || store.getPublished();
-  const { specialties } = currentData;
+  const { specialties, products } = currentData;
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
   const categories = [
@@ -24,7 +24,35 @@ export const Specialties: React.FC<SpecialtiesProps> = ({ onSelectItemForOrder, 
     { id: 'escola', label: 'Festa na Escola' },
   ];
 
-  const activeSpecialties = specialties.filter((item) => item.active);
+  // The public menu is product-driven. `specialties` remains as optional
+  // editorial enrichment for legacy products, while every active product is
+  // rendered even when it shares a category with another one.
+  const activeSpecialties: SpecialtyItem[] = products
+    .filter((product) => product.active)
+    .map((product) => {
+      const specialty = specialties.find(
+        (item) => item.id === product.id || (item.slug && product.slug && item.slug === product.slug)
+      );
+
+      return {
+        id: product.id,
+        category: product.category,
+        slug: product.slug,
+        title: product.name,
+        subtitle: specialty?.subtitle || product.short_description || product.minimum_notice,
+        description: product.full_description,
+        image: product.main_image,
+        serves: product.unit,
+        badge: product.badge,
+        seoTag: specialty?.seoTag || '',
+        startingPrice: product.starting_price_display,
+        highlights: specialty?.highlights || [],
+        sort_order: product.sort_order,
+        active: product.active,
+        featured: product.featured,
+      };
+    })
+    .sort((a, b) => a.sort_order - b.sort_order);
   const filteredItems = activeCategory === 'all'
     ? activeSpecialties
     : activeSpecialties.filter((item) => item.category === activeCategory);

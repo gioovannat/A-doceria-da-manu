@@ -176,9 +176,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
     if (!editingProduct) return;
 
     onChange((prev) => {
-      // 1. Atualiza o produto na lista de produtos sem gerar duplicidade
+      // Produtos são identificados pelo próprio id/slug, não pela categoria.
+      // Isso permite cadastrar vários produtos em uma mesma categoria.
       const productIndex = prev.products.findIndex(
-        (p) => p.id === editingProduct.id || p.category === editingProduct.category || p.slug === editingProduct.slug
+        (p) => p.id === editingProduct.id || (editingProduct.slug && p.slug === editingProduct.slug)
       );
       let updatedProducts = [...prev.products];
       if (productIndex >= 0) {
@@ -187,10 +188,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
         updatedProducts.push(editingProduct);
       }
 
-      // 2. Sincroniza imediatamente na especialidade correspondente:
-      // Quando modificado no cardápio, a especialidade no site também é atualizada
+      // Mantém o registro legado de especialidade sincronizado somente quando
+      // ele representa este mesmo produto.
       const specialtyIndex = prev.specialties.findIndex(
-        (s) => s.id === editingProduct.id || s.category === editingProduct.category || s.slug === editingProduct.slug
+        (s) => s.id === editingProduct.id || (editingProduct.slug && s.slug === editingProduct.slug)
       );
 
       let updatedSpecialties = [...prev.specialties];
@@ -217,7 +218,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
       };
     });
 
-    success('Produto e especialidade vinculada foram atualizados com sucesso!');
+    success('Produto atualizado com sucesso!');
     setEditingProduct(null);
   };
 
