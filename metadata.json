@@ -1,0 +1,8 @@
+{
+  "name": "Remix A Doceria da Manu | Confeitaria Artesanal",
+  "description": "Landing page de alta conversão para A Doceria da Manu. Bolos decorados sob encomenda, bentô cakes, docinhos finos, kit festa e cursos em Paço do Lumiar e Grande São Luís.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
