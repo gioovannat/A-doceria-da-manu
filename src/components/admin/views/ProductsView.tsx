@@ -58,6 +58,66 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
   const [newPackaging, setNewPackaging] = useState({ name: '', description: '', additional_price: 0, is_required: false });
   const [newAddon, setNewAddon] = useState({ name: '', description: '', price: 15, unit: 'unidade' });
 
+  // Modal exclusivo de gerenciamento de massas para todos os bolos
+  const [isBattersModalOpen, setIsBattersModalOpen] = useState(false);
+  const [customBattersList, setCustomBattersList] = useState<CakeBatter[]>([]);
+  const [newGlobalBatter, setNewGlobalBatter] = useState({ name: '', description: '', additional_price: 0 });
+
+  // Carrega a lista consolidada de massas cadastradas no cardápio
+  useEffect(() => {
+    const list: CakeBatter[] = [];
+    const seen = new Set<string>();
+    for (const p of data.products) {
+      if (p.batters) {
+        for (const b of p.batters) {
+          const key = b.name.trim().toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            list.push(b);
+          }
+        }
+      }
+    }
+    if (list.length > 0) {
+      setCustomBattersList(list);
+    }
+  }, [data.products]);
+
+  const handleAddGlobalBatter = () => {
+    if (!newGlobalBatter.name.trim()) return;
+    const item: CakeBatter = {
+      id: 'bat-' + Date.now(),
+      name: newGlobalBatter.name.trim(),
+      description: newGlobalBatter.description,
+      additional_price: Number(newGlobalBatter.additional_price) || 0,
+      active: true,
+    };
+    setCustomBattersList((prev) => [...prev, item]);
+    setNewGlobalBatter({ name: '', description: '', additional_price: 0 });
+  };
+
+  const handleRemoveGlobalBatter = (id: string) => {
+    setCustomBattersList((prev) => prev.filter(b => b.id !== id));
+  };
+
+  const handleSaveAllBatters = () => {
+    onChange((prev) => {
+      const updatedProducts = prev.products.map((p) => {
+        // Atualiza em bolos, bentos, kits ou itens que usam massa
+        if (p.category === 'bolos' || p.category === 'bento' || p.category === 'kits' || p.requires_batter) {
+          return { ...p, batters: customBattersList };
+        }
+        return p;
+      });
+      return {
+        ...prev,
+        products: updatedProducts,
+      };
+    });
+    setIsBattersModalOpen(false);
+    success('Massas salvas e sincronizadas! Elas já aparecem na página do visitante em "Monte seu Pedido".');
+  };
+
   // ----------------------------------------------------------------------
   // Product handlers
   // ----------------------------------------------------------------------
@@ -341,6 +401,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
         subtitle="Gerencie todos os itens comercializados e clique em cada um para personalizar seus recheios, embalagens e adicionais."
         headerAction={
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={<Cake className="w-4 h-4 text-[#D81E5B]" />}
+              onClick={() => setIsBattersModalOpen(true)}
+            >
+              Configurar Massas dos Bolos
+            </Button>
             <Button
               size="sm"
               variant="primary"
@@ -1265,6 +1333,132 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
             </div>
 
           </form>
+        </Modal>
+      )}
+
+      {/* MODAL GERAL DE CONFIGURAÇÃO DE MASSAS */}
+      {isBattersModalOpen && (
+        <Modal
+          isOpen={true}
+          onClose={() => setIsBattersModalOpen(false)}
+          title="Configuração de Massas dos Bolos"
+          size="lg"
+        >
+          <div className="space-y-5 text-left p-1">
+            <div className="p-3.5 rounded-2xl bg-[#FFF0F4] border border-[#FAD0DE] text-xs text-[#7A505D] leading-relaxed flex items-start gap-2.5">
+              <Sparkles className="w-4 h-4 text-[#D81E5B] shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-[#3D1E26] block font-bold">Sincronização Automática com o Site:</strong>
+                Todas as opções de massas cadastradas ou modificadas aqui aparecem na página pública do visitante na seção <strong>"Monte seu Pedido"</strong> para todos os bolos.
+              </div>
+            </div>
+
+            {/* Lista das massas atualmente na lista */}
+            <div>
+              <label className="text-xs font-bold text-[#3D1E26] uppercase tracking-wider block mb-2">
+                Tipos de Massas Atualmente Cadastrados ({customBattersList.length})
+              </label>
+
+              {customBattersList.length === 0 ? (
+                <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-500 text-center">
+                  Nenhuma massa cadastrada. Adicione uma nova massa abaixo.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {customBattersList.map((bat) => (
+                    <div
+                      key={bat.id}
+                      className="p-3 rounded-xl bg-white border border-[#FAD0DE] flex items-center justify-between gap-3 shadow-2xs"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-[#3D1E26]">{bat.name}</span>
+                          {bat.additional_price && bat.additional_price > 0 ? (
+                            <span className="text-[10px] font-bold text-[#D81E5B] bg-[#FFF0F4] px-1.5 py-0.5 rounded-md">
+                              +R$ {bat.additional_price.toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md">
+                              Inclusa (Sem acréscimo)
+                            </span>
+                          )}
+                        </div>
+                        {bat.description && (
+                          <p className="text-[11px] text-[#7A505D] mt-0.5">{bat.description}</p>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveGlobalBatter(bat.id)}
+                        className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
+                        title="Remover massa"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Formulário de adicionar nova massa */}
+            <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-3">
+              <h5 className="text-xs font-bold text-[#B8134B] uppercase tracking-wider flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> Adicionar Novo Tipo de Massa
+              </h5>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Nome da Massa"
+                  placeholder="Ex: Massa Amanteigada de Baunilha, Red Velvet, Cenoura..."
+                  value={newGlobalBatter.name}
+                  onChange={(e) => setNewGlobalBatter({ ...newGlobalBatter, name: e.target.value })}
+                />
+                <Input
+                  label="Acréscimo de Preço (R$)"
+                  placeholder="0 para inclusa ou valor extra (ex: 5.00)"
+                  type="number"
+                  step="0.5"
+                  value={newGlobalBatter.additional_price || ''}
+                  onChange={(e) => setNewGlobalBatter({ ...newGlobalBatter, additional_price: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <Input
+                label="Descrição / Detalhes da Massa"
+                placeholder="Ex: Massa estruturada, aromática, molhadinha e com aroma de fava de baunilha"
+                value={newGlobalBatter.description}
+                onChange={(e) => setNewGlobalBatter({ ...newGlobalBatter, description: e.target.value })}
+              />
+
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                icon={<Plus className="w-3.5 h-3.5" />}
+                onClick={handleAddGlobalBatter}
+              >
+                Incluir na Lista de Massas
+              </Button>
+            </div>
+
+            {/* Rodapé de Ações */}
+            <div className="flex items-center justify-between pt-4 border-t border-[#FEE7EF]">
+              <span className="text-xs text-[#7A505D]">
+                {customBattersList.length} massa{customBattersList.length !== 1 ? 's' : ''} pronta{customBattersList.length !== 1 ? 's' : ''} para salvar
+              </span>
+
+              <div className="flex items-center gap-3">
+                <Button type="button" variant="outline" onClick={() => setIsBattersModalOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="button" variant="primary" onClick={handleSaveAllBatters}>
+                  Salvar e Publicar no Site
+                </Button>
+              </div>
+            </div>
+          </div>
         </Modal>
       )}
 

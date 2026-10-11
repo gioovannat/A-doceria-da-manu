@@ -105,11 +105,11 @@ class StoreService {
             dedupedProducts[existingIndex] = {
               ...ex,
               ...fullProd,
-              batters: ex.batters && ex.batters.length > 0 ? ex.batters : fullProd.batters,
-              variations: ex.variations && ex.variations.length > 0 ? ex.variations : fullProd.variations,
-              flavors: ex.flavors && ex.flavors.length > 0 ? ex.flavors : fullProd.flavors,
-              packaging: ex.packaging && ex.packaging.length > 0 ? ex.packaging : fullProd.packaging,
-              addons: ex.addons && ex.addons.length > 0 ? ex.addons : fullProd.addons,
+              batters: (prod.batters && prod.batters.length > 0) ? prod.batters : (ex.batters && ex.batters.length > 0 ? ex.batters : fullProd.batters),
+              variations: (prod.variations && prod.variations.length > 0) ? prod.variations : (ex.variations && ex.variations.length > 0 ? ex.variations : fullProd.variations),
+              flavors: (prod.flavors && prod.flavors.length > 0) ? prod.flavors : (ex.flavors && ex.flavors.length > 0 ? ex.flavors : fullProd.flavors),
+              packaging: (prod.packaging && prod.packaging.length > 0) ? prod.packaging : (ex.packaging && ex.packaging.length > 0 ? ex.packaging : fullProd.packaging),
+              addons: (prod.addons && prod.addons.length > 0) ? prod.addons : (ex.addons && ex.addons.length > 0 ? ex.addons : fullProd.addons),
             };
           } else {
             dedupedProducts.push(fullProd);
@@ -258,6 +258,46 @@ class StoreService {
       return true;
     } catch (err: any) {
       this.setSaveStatus('error', err.message || 'Falha ao salvar rascunho.');
+      return false;
+    }
+  }
+
+  /**
+   * Save and immediately publish so changes reflect on the visitor page
+   */
+  public async saveAndPublish(updater: (current: AppDatabase) => AppDatabase, authorName: string = 'Administrador'): Promise<boolean> {
+    try {
+      const now = new Date().toISOString();
+      const updated = updater(JSON.parse(JSON.stringify(this.draftData)));
+      updated.updated_at = now;
+      updated.published_at = now;
+      updated.published_by = authorName;
+
+      this.draftData = JSON.parse(JSON.stringify(updated));
+      this.publishedData = JSON.parse(JSON.stringify(updated));
+
+      this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
+      this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
+
+      if (isSupabaseConfigured && supabase) {
+        await supabase.from('site_content').upsert({
+          id: 'published_main',
+          content: this.publishedData,
+          published_at: now,
+          published_by: authorName,
+        });
+        await supabase.from('site_content').upsert({
+          id: 'draft_main',
+          content: this.draftData,
+          updated_at: now,
+        });
+      }
+
+      this.setSaveStatus('saved');
+      this.notify();
+      return true;
+    } catch (err: any) {
+      this.setSaveStatus('error', err.message || 'Falha ao salvar e publicar.');
       return false;
     }
   }

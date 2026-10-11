@@ -65,10 +65,21 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     || uniqueProducts.find((p) => p.name === category || p.category === category)
     || uniqueProducts[0];
 
-  // Dynamic options strictly derived from the selected product
-  const availableBatters: CakeBatter[] = (selectedProductObj?.batters && selectedProductObj.batters.length > 0)
-    ? selectedProductObj.batters.filter(b => b.active)
-    : [];
+  // Dynamic options strictly derived from the selected product or configured cake batters
+  const availableBatters: CakeBatter[] = React.useMemo(() => {
+    // 1. Se o produto selecionado possui massas próprias ativas cadastradas
+    if (selectedProductObj?.batters && selectedProductObj.batters.length > 0) {
+      const activeBatters = selectedProductObj.batters.filter(b => b.active);
+      if (activeBatters.length > 0) return activeBatters;
+    }
+
+    // 2. Se for um produto de bolo, festa ou personalizado, busca todas as massas configuradas no painel de gestão
+    const cakeProduct = products.find(
+      (p) => (p.category === 'bolos' || p.category === 'bento' || p.requires_batter) && p.batters && p.batters.length > 0
+    ) || products.find((p) => p.batters && p.batters.length > 0);
+
+    return cakeProduct?.batters ? cakeProduct.batters.filter(b => b.active) : [];
+  }, [selectedProductObj, products]);
 
   const availableFlavors: Flavor[] = (selectedProductObj?.flavors && selectedProductObj.flavors.length > 0)
     ? selectedProductObj.flavors.filter(f => f.active)

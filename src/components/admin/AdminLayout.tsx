@@ -68,11 +68,12 @@ export const AdminLayout: React.FC = () => {
     };
   }, []);
 
-  // Update working state
+  // Update working state and immediately sync to live site
   const handleUpdateDraft = (updater: (prev: AppDatabase) => AppDatabase) => {
     setDraftData((prev) => {
       const updated = updater(prev);
-      setHasUnsavedEdits(true);
+      setHasUnsavedEdits(false);
+      store.saveAndPublish(() => updated, currentUser?.name || 'Administrador');
       return updated;
     });
   };

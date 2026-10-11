@@ -317,6 +317,15 @@ export const INITIAL_DATABASE: AppDatabase = {
       active: true,
       featured: true,
       sort_order: 3,
+      requires_batter: true,
+      min_flavors: 1,
+      max_flavors: 1,
+      min_addons: 0,
+      batters: [
+        { id: 'bat-k1', name: 'Massa Amanteigada de Baunilha', description: 'Estruturada, leve e aveludada', additional_price: 0, active: true },
+        { id: 'bat-k2', name: 'Massa de Chocolate 50% Cacau', description: 'Úmida e marcante com cacau nobre', additional_price: 0, active: true },
+        { id: 'bat-k3', name: 'Massa Red Velvet Veludo', description: 'Aveludada e macia', additional_price: 5, active: true },
+      ],
       variations: [
         { id: 'var-k1', product_id: 'kit-festa', name: 'Kit 10 Pessoas (Bolo 10 fatias + 30 doces + 50 salgados)', description: 'Ideal para festas íntimas', price: 180, unit: 'kit', lead_time: '48h', active: true },
         { id: 'var-k2', product_id: 'kit-festa', name: 'Kit 20 Pessoas (Bolo 20 fatias + 60 doces + 100 salgados)', description: 'Nosso kit mais vendido', price: 260, unit: 'kit', lead_time: '72h', active: true },
