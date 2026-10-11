@@ -62,6 +62,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
   const [editingFlavor, setEditingFlavor] = useState<Flavor | null>(null);
   const [editingPackaging, setEditingPackaging] = useState<PackagingOption | null>(null);
   const [editingAddon, setEditingAddon] = useState<Addon | null>(null);
+  const [newGalleryImage, setNewGalleryImage] = useState('');
 
   // Modal exclusivo de gerenciamento de massas para todos os bolos
   const [isBattersModalOpen, setIsBattersModalOpen] = useState(false);
@@ -204,6 +205,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
       packaging: prod.packaging || [],
       addons: prod.addons || [],
     });
+    setNewGalleryImage('');
     setProductActiveTab(initialTab);
   };
 
@@ -234,10 +236,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
       packaging: [
         { id: 'pack-' + Date.now(), name: 'Caixa de Transporte Padrão', description: 'Embalagem segura e reforçada', additional_price: 0, is_required: true, active: true }
       ],
-      addons: [],
+      // Cada produto novo recebe sua própria cópia dos adicionais gerais.
+      addons: (data.addons || []).map((addon) => ({ ...addon })),
     };
     setEditingProduct(newProd);
     setProductActiveTab('geral');
+    setNewGalleryImage('');
   };
 
   const handleSaveProduct = (e: React.FormEvent) => {
@@ -289,6 +293,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
 
     success('Produto atualizado com sucesso!');
     setEditingProduct(null);
+    setNewGalleryImage('');
   };
 
   const handleDuplicateProduct = (prod: Product) => {
@@ -771,7 +776,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
       {editingProduct && (
         <Modal
           isOpen={true}
-          onClose={() => setEditingProduct(null)}
+          onClose={() => {
+            setEditingProduct(null);
+            setNewGalleryImage('');
+          }}
           title={editingProduct.name ? `Configurar: ${editingProduct.name}` : 'Criar Novo Produto'}
           subtitle="Edite dados gerais, massas, tamanhos, recheios permitidos, embalagens e adicionais particulares deste item."
           size="xl"
@@ -913,6 +921,61 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                   value={editingProduct.main_image}
                   onChange={(url) => setEditingProduct({ ...editingProduct, main_image: url })}
                 />
+
+                <div className="p-4 rounded-2xl bg-[#FFF8FA] border border-[#FAD0DE] space-y-3">
+                  <div>
+                    <h5 className="text-xs font-bold text-[#3D1E26] uppercase tracking-wider">Fotos adicionais do cardápio</h5>
+                    <p className="text-[11px] text-[#7A505D] mt-1">Cadastre outras fotos e escolha qual delas aparece no cartão público, sem alterar o layout.</p>
+                  </div>
+
+                  {(editingProduct.gallery || []).length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {editingProduct.gallery.map((image, index) => (
+                        <div key={`${image}-${index}`} className="relative rounded-xl overflow-hidden border border-[#FAD0DE] bg-white">
+                          <img src={image} alt={`Foto adicional ${index + 1}`} className="w-full aspect-square object-cover" />
+                          <div className="p-2 flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setEditingProduct({ ...editingProduct, main_image: image })}
+                              className="flex-1 text-[10px] font-bold text-[#D81E5B] hover:underline cursor-pointer"
+                            >
+                              {editingProduct.main_image === image ? 'Em exibição' : 'Exibir'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingProduct({ ...editingProduct, gallery: (editingProduct.gallery || []).filter((_, galleryIndex) => galleryIndex !== index) })}
+                              className="text-rose-500 hover:text-rose-700 cursor-pointer"
+                              title="Remover foto"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <ImageUploader
+                    label="Adicionar foto ao produto"
+                    value={newGalleryImage}
+                    onChange={setNewGalleryImage}
+                    aspectRatio="video"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    icon={<Plus className="w-3.5 h-3.5" />}
+                    disabled={!newGalleryImage || (editingProduct.gallery || []).includes(newGalleryImage)}
+                    onClick={() => {
+                      if (!newGalleryImage) return;
+                      setEditingProduct({ ...editingProduct, gallery: [...(editingProduct.gallery || []), newGalleryImage] });
+                      setNewGalleryImage('');
+                    }}
+                  >
+                    Adicionar foto
+                  </Button>
+                </div>
 
                 <div className="pt-2">
                   <Switch
