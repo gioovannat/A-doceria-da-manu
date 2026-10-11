@@ -57,6 +57,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
   const [newFlavor, setNewFlavor] = useState({ name: '', description: '', additional_price: 0 });
   const [newPackaging, setNewPackaging] = useState({ name: '', description: '', additional_price: 0, is_required: false });
   const [newAddon, setNewAddon] = useState({ name: '', description: '', price: 15, unit: 'unidade', image: '' });
+  const [editingAddon, setEditingAddon] = useState<Addon | null>(null);
 
   // Modal exclusivo de gerenciamento de massas para todos os bolos
   const [isBattersModalOpen, setIsBattersModalOpen] = useState(false);
@@ -384,6 +385,18 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
       ...editingProduct,
       addons: editingProduct.addons?.filter((a) => a.id !== id) || [],
     });
+  };
+
+  const handleSaveAddon = () => {
+    if (!editingProduct || !editingAddon || !editingAddon.name.trim()) return;
+    setEditingProduct({
+      ...editingProduct,
+      addons: editingProduct.addons?.map((addon) =>
+        addon.id === editingAddon.id ? { ...editingAddon, name: editingAddon.name.trim() } : addon
+      ) || [],
+    });
+    setEditingAddon(null);
+    success('Adicional atualizado. Salve as configurações do produto para publicar.');
   };
 
   return (
@@ -1265,13 +1278,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                           </div>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveAddonFromProduct(a.id)}
-                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingAddon({ ...a })}
+                            className="p-1.5 text-[#D81E5B] hover:bg-[#FFF0F4] rounded-lg cursor-pointer"
+                            title="Editar adicional"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAddonFromProduct(a.id)}
+                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
+                            title="Excluir adicional"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}
@@ -1346,6 +1370,53 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
             </div>
 
           </form>
+        </Modal>
+      )}
+
+      {editingAddon && (
+        <Modal
+          isOpen={true}
+          onClose={() => setEditingAddon(null)}
+          title={`Editar adicional: ${editingAddon.name}`}
+          subtitle="Altere os dados e a foto de exemplo deste item."
+          size="lg"
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Input
+                label="Nome"
+                value={editingAddon.name}
+                onChange={(e) => setEditingAddon({ ...editingAddon, name: e.target.value })}
+              />
+              <Input
+                label="Preço (R$)"
+                type="number"
+                step="1"
+                value={editingAddon.price || ''}
+                onChange={(e) => setEditingAddon({ ...editingAddon, price: parseFloat(e.target.value) || 0 })}
+              />
+              <Input
+                label="Unidade"
+                value={editingAddon.unit}
+                onChange={(e) => setEditingAddon({ ...editingAddon, unit: e.target.value })}
+              />
+            </div>
+            <Input
+              label="Descrição"
+              value={editingAddon.description}
+              onChange={(e) => setEditingAddon({ ...editingAddon, description: e.target.value })}
+            />
+            <ImageUploader
+              label="Foto de exemplo (opcional)"
+              value={editingAddon.image || ''}
+              onChange={(image) => setEditingAddon({ ...editingAddon, image: image || undefined })}
+              aspectRatio="square"
+            />
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#FEE7EF]">
+              <Button type="button" variant="outline" onClick={() => setEditingAddon(null)}>Cancelar</Button>
+              <Button type="button" variant="primary" onClick={handleSaveAddon}>Salvar alteração</Button>
+            </div>
+          </div>
         </Modal>
       )}
 
