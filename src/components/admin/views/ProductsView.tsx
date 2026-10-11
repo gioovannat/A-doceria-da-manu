@@ -68,6 +68,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
   const [customBattersList, setCustomBattersList] = useState<CakeBatter[]>([]);
   const [newGlobalBatter, setNewGlobalBatter] = useState({ name: '', description: '', additional_price: 0 });
   const [editingGlobalBatter, setEditingGlobalBatter] = useState<CakeBatter | null>(null);
+  const [isAddonsModalOpen, setIsAddonsModalOpen] = useState(false);
+  const [customAddonsList, setCustomAddonsList] = useState<Addon[]>([]);
+  const [newGlobalAddon, setNewGlobalAddon] = useState({ name: '', description: '', price: 15, unit: 'unidade', image: '' });
+  const [editingGlobalAddon, setEditingGlobalAddon] = useState<Addon | null>(null);
 
   // Carrega a lista consolidada de massas cadastradas no cardápio
   useEffect(() => {
@@ -88,6 +92,25 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
       setCustomBattersList(list);
     }
   }, [data.products]);
+
+  useEffect(() => {
+    const list: Addon[] = [];
+    const seen = new Set<string>();
+    const add = (addon: Addon) => {
+        const key = addon.name.trim().toLowerCase();
+        if (!seen.has(key)) {
+          seen.add(key);
+          list.push(addon);
+        }
+    };
+    for (const addon of data.addons || []) add(addon);
+    for (const p of data.products) {
+      for (const addon of p.addons || []) {
+        add(addon);
+      }
+    }
+    setCustomAddonsList(list);
+  }, [data.addons, data.products]);
 
   const handleAddGlobalBatter = () => {
     if (!newGlobalBatter.name.trim()) return;
@@ -130,6 +153,38 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
     });
     setIsBattersModalOpen(false);
     success('Massas salvas e sincronizadas! Elas já aparecem na página do visitante em "Monte seu Pedido".');
+  };
+
+  const handleAddGlobalAddon = () => {
+    if (!newGlobalAddon.name.trim()) return;
+    setCustomAddonsList((prev) => [...prev, {
+      id: 'add-' + Date.now(),
+      name: newGlobalAddon.name.trim(),
+      description: newGlobalAddon.description,
+      price: Number(newGlobalAddon.price) || 0,
+      unit: newGlobalAddon.unit || 'unidade',
+      image: newGlobalAddon.image || undefined,
+      active: true,
+    }]);
+    setNewGlobalAddon({ name: '', description: '', price: 15, unit: 'unidade', image: '' });
+  };
+
+  const handleSaveGlobalAddon = () => {
+    if (!editingGlobalAddon || !editingGlobalAddon.name.trim()) return;
+    setCustomAddonsList((prev) => prev.map((addon) =>
+      addon.id === editingGlobalAddon.id ? { ...editingGlobalAddon, name: editingGlobalAddon.name.trim() } : addon
+    ));
+    setEditingGlobalAddon(null);
+  };
+
+  const handleSaveAllAddons = () => {
+    onChange((prev) => ({
+      ...prev,
+      addons: customAddonsList,
+      products: prev.products.map((product) => ({ ...product, addons: customAddonsList })),
+    }));
+    setIsAddonsModalOpen(false);
+    success('Adicionais salvos e sincronizados! Eles já aparecem na página do visitante em "Monte seu Pedido".');
   };
 
   // ----------------------------------------------------------------------
@@ -485,6 +540,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
               onClick={() => setIsBattersModalOpen(true)}
             >
               Configurar Massas dos Bolos
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={<Gift className="w-4 h-4 text-[#D81E5B]" />}
+              onClick={() => setIsAddonsModalOpen(true)}
+            >
+              Configurar Adicionais
             </Button>
             <Button
               size="sm"
@@ -1597,6 +1660,94 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
             <div className="flex justify-end gap-3 pt-3 border-t border-[#FEE7EF]">
               <Button type="button" variant="outline" onClick={() => setEditingGlobalBatter(null)}>Cancelar</Button>
               <Button type="button" variant="primary" onClick={handleSaveGlobalBatter}>Salvar alteração</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {editingGlobalAddon && (
+        <Modal isOpen={true} onClose={() => setEditingGlobalAddon(null)} title={`Editar adicional: ${editingGlobalAddon.name}`} size="lg">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Input label="Nome" value={editingGlobalAddon.name} onChange={(e) => setEditingGlobalAddon({ ...editingGlobalAddon, name: e.target.value })} />
+              <Input label="Preço (R$)" type="number" step="1" value={editingGlobalAddon.price || ''} onChange={(e) => setEditingGlobalAddon({ ...editingGlobalAddon, price: parseFloat(e.target.value) || 0 })} />
+              <Input label="Unidade" value={editingGlobalAddon.unit} onChange={(e) => setEditingGlobalAddon({ ...editingGlobalAddon, unit: e.target.value })} />
+            </div>
+            <Input label="Descrição" value={editingGlobalAddon.description || ''} onChange={(e) => setEditingGlobalAddon({ ...editingGlobalAddon, description: e.target.value })} />
+            <ImageUploader label="Foto de exemplo (opcional)" value={editingGlobalAddon.image || ''} onChange={(image) => setEditingGlobalAddon({ ...editingGlobalAddon, image: image || undefined })} aspectRatio="square" />
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#FEE7EF]">
+              <Button type="button" variant="outline" onClick={() => setEditingGlobalAddon(null)}>Cancelar</Button>
+              <Button type="button" variant="primary" onClick={handleSaveGlobalAddon}>Salvar alteração</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {isAddonsModalOpen && (
+        <Modal isOpen={true} onClose={() => setIsAddonsModalOpen(false)} title="Configuração Geral de Adicionais" size="lg">
+          <div className="space-y-5 text-left p-1">
+            <div className="p-3.5 rounded-2xl bg-[#FFF0F4] border border-[#FAD0DE] text-xs text-[#7A505D] leading-relaxed flex items-start gap-2.5">
+              <Gift className="w-4 h-4 text-[#D81E5B] shrink-0 mt-0.5" />
+              <div>
+                <strong className="text-[#3D1E26] block font-bold">Sincronização Automática com o Site:</strong>
+                Todos os adicionais cadastrados ou modificados aqui aparecem na página pública do visitante em <strong>"Monte seu Pedido"</strong>.
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-[#3D1E26] uppercase tracking-wider block mb-2">
+                Adicionais Atualmente Cadastrados ({customAddonsList.length})
+              </label>
+              {customAddonsList.length === 0 ? (
+                <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-500 text-center">
+                  Nenhum adicional cadastrado. Adicione um novo item abaixo.
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                  {customAddonsList.map((addon) => (
+                    <div key={addon.id} className="p-3 rounded-xl bg-white border border-[#FAD0DE] flex items-center justify-between gap-3 shadow-2xs">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {addon.image && <img src={addon.image} alt="" className="w-10 h-10 rounded-xl object-cover border border-[#FAD0DE] shrink-0" />}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-[#3D1E26]">{addon.name}</span>
+                            <span className="text-[10px] font-bold text-[#D81E5B] bg-[#FFF0F4] px-1.5 py-0.5 rounded-md">+R$ {addon.price.toFixed(2)} /{addon.unit}</span>
+                          </div>
+                          {addon.description && <p className="text-[11px] text-[#7A505D] mt-0.5">{addon.description}</p>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => setEditingGlobalAddon({ ...addon })} className="p-1.5 text-[#D81E5B] hover:bg-[#FFF0F4] rounded-lg cursor-pointer transition-colors" title="Editar adicional"><Edit3 className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => setCustomAddonsList((prev) => prev.filter((item) => item.id !== addon.id))} className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors" title="Remover adicional"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-3">
+              <h5 className="text-xs font-bold text-[#B8134B] uppercase tracking-wider flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> Adicionar Novo Adicional
+              </h5>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Input label="Nome" placeholder="Ex: Topo personalizado" value={newGlobalAddon.name} onChange={(e) => setNewGlobalAddon({ ...newGlobalAddon, name: e.target.value })} />
+                <Input label="Preço (R$)" type="number" step="1" value={newGlobalAddon.price || ''} onChange={(e) => setNewGlobalAddon({ ...newGlobalAddon, price: parseFloat(e.target.value) || 0 })} />
+                <Input label="Unidade" placeholder="unidade, kit..." value={newGlobalAddon.unit} onChange={(e) => setNewGlobalAddon({ ...newGlobalAddon, unit: e.target.value })} />
+              </div>
+              <Input label="Descrição" placeholder="Ex: Nome e idade em acrílico ou papelaria" value={newGlobalAddon.description} onChange={(e) => setNewGlobalAddon({ ...newGlobalAddon, description: e.target.value })} />
+              <ImageUploader label="Foto de exemplo (opcional)" value={newGlobalAddon.image} onChange={(image) => setNewGlobalAddon({ ...newGlobalAddon, image })} aspectRatio="square" />
+              <Button type="button" variant="secondary" size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={handleAddGlobalAddon}>
+                Incluir na Lista de Adicionais
+              </Button>
+            </div>
+
+            <div className="flex items-center justify-between pt-4 border-t border-[#FEE7EF]">
+              <span className="text-xs text-[#7A505D]">{customAddonsList.length} adicional{customAddonsList.length !== 1 ? 'is' : ''} pronto{customAddonsList.length !== 1 ? 's' : ''} para salvar</span>
+              <div className="flex items-center gap-3">
+                <Button type="button" variant="outline" onClick={() => setIsAddonsModalOpen(false)}>Cancelar</Button>
+                <Button type="button" variant="primary" onClick={handleSaveAllAddons}>Salvar e Publicar no Site</Button>
+              </div>
             </div>
           </div>
         </Modal>
