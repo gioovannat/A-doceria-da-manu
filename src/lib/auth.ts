@@ -14,16 +14,6 @@ export const DEFAULT_ADMIN: UserProfile = {
   updated_at: new Date().toISOString(),
 };
 
-export const DEFAULT_EDITOR: UserProfile = {
-  id: 'usr-editor-atelier',
-  email: 'editor@adoceriadamanu.com.br',
-  name: 'Atelier da Manu (Equipe)',
-  role: 'editor',
-  avatar_url: '/logo.png',
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-};
-
 export interface AuthSession {
   user: UserProfile;
   token: string;
@@ -106,9 +96,9 @@ class AuthService {
             .single();
 
           const role = (profileData?.role as UserRole) || 'admin';
-          if (role !== 'admin' && role !== 'editor') {
+          if (role !== 'admin') {
             await supabase.auth.signOut();
-            return { success: false, error: 'Acesso restrito. Sua conta não possui permissões administrativas.' };
+            return { success: false, error: 'Acesso restrito. Apenas administradores podem acessar este painel.' };
           }
 
           const userProfile: UserProfile = {
@@ -137,14 +127,6 @@ class AuthService {
     ) {
       this.setSession(DEFAULT_ADMIN, 'local-admin-token-' + Date.now());
       return { success: true, user: DEFAULT_ADMIN };
-    }
-
-    if (
-      cleanEmail === 'editor@adoceriadamanu.com.br' &&
-      (password === 'editor@2026' || password === 'editor123')
-    ) {
-      this.setSession(DEFAULT_EDITOR, 'local-editor-token-' + Date.now());
-      return { success: true, user: DEFAULT_EDITOR };
     }
 
     // Allow user to login with any valid formatted email using standard master key if initializing
