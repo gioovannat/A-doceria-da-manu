@@ -46,8 +46,29 @@ export default function App() {
     setIsOrderModalOpen(true);
   };
 
-  const handleSelectItemForOrder = (itemName: string) => {
-    setSelectedItemForOrder(itemName);
+  const handleSelectItemForOrder = (itemName: string, itemCategory?: string) => {
+    const categoryAliases: Record<string, string[]> = {
+      bolos: ['bolos', 'bolo'],
+      bento: ['bento'],
+      kits: ['kits', 'kit'],
+      doces: ['doces', 'brigadeiros'],
+      salgados: ['salgados'],
+      escola: ['escola'],
+    };
+    const normalizedItemName = itemName.trim().toLowerCase();
+    const selectedProduct = publishedData.products.find((product) => {
+      if (product.name.trim().toLowerCase() === normalizedItemName || product.slug === normalizedItemName) {
+        return true;
+      }
+
+      return itemCategory
+        ? (categoryAliases[itemCategory] || [itemCategory]).some((alias) =>
+            product.category.toLowerCase().includes(alias),
+          )
+        : false;
+    });
+
+    setSelectedItemForOrder(selectedProduct?.name || itemName);
     setIsOrderModalOpen(true);
   };
 

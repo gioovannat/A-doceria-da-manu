@@ -72,6 +72,18 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
+    const requestedProduct = products.find((product) => product.name === initialItem);
+    if (requestedProduct && requestedProduct.name !== category) {
+      setCategory(requestedProduct.name);
+      setFlavor1('');
+      setFlavor2('');
+      setBatter('');
+      setSelectedPack('');
+      setSelectedAddons([]);
+      setServings('');
+      return;
+    }
+
     setValidationError(null);
 
     // 1. Batter sync
