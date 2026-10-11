@@ -31,13 +31,83 @@ export const SpecialtiesView: React.FC<SpecialtiesViewProps> = ({ data, onChange
 
     onChange((prev) => {
       const exists = prev.specialties.some((s) => s.id === editingSpecialty.id);
-      const updated = exists
+      const updatedSpecialties = exists
         ? prev.specialties.map((s) => (s.id === editingSpecialty.id ? editingSpecialty : s))
         : [...prev.specialties, editingSpecialty];
-      return { ...prev, specialties: updated };
+
+      // Sincronização direta com o catálogo de produtos:
+      // Se já existir um produto correspondente (por id, categoria, slug ou nome), atualiza os dados dele;
+      // Caso seja uma especialidade nova, cria automaticamente um produto no catálogo sem duplicações.
+      const productIndex = prev.products.findIndex(
+        (p) => p.id === editingSpecialty.id || p.category === editingSpecialty.category || p.slug === editingSpecialty.slug || p.name.toLowerCase() === editingSpecialty.title.toLowerCase()
+      );
+
+      let updatedProducts = [...prev.products];
+      if (productIndex >= 0) {
+        const existingProd = updatedProducts[productIndex];
+        updatedProducts[productIndex] = {
+          ...existingProd,
+          name: editingSpecialty.title,
+          slug: editingSpecialty.slug,
+          full_description: editingSpecialty.description,
+          category: editingSpecialty.category,
+          main_image: editingSpecialty.image,
+          unit: editingSpecialty.serves,
+          badge: editingSpecialty.badge,
+          starting_price_display: editingSpecialty.startingPrice,
+          active: editingSpecialty.active,
+          featured: editingSpecialty.featured,
+        };
+      } else {
+        // Criação de novo produto no catálogo a partir da nova especialidade cadastrada
+        const parsedPrice = parseFloat(editingSpecialty.startingPrice.replace(/[^0-9,.]/g, '').replace(',', '.')) || 100;
+        const newProduct: any = {
+          id: editingSpecialty.id,
+          name: editingSpecialty.title,
+          slug: editingSpecialty.slug,
+          full_description: editingSpecialty.description,
+          category: editingSpecialty.category,
+          main_image: editingSpecialty.image,
+          gallery: [editingSpecialty.image],
+          starting_price: parsedPrice,
+          starting_price_display: editingSpecialty.startingPrice,
+          unit: editingSpecialty.serves,
+          minimum_notice: '48h',
+          badge: editingSpecialty.badge || 'Especial',
+          active: editingSpecialty.active,
+          featured: editingSpecialty.featured,
+          sort_order: updatedProducts.length + 1,
+          requires_batter: editingSpecialty.category === 'bolos' || editingSpecialty.category === 'bento',
+          min_flavors: editingSpecialty.category === 'bolos' ? 2 : 1,
+          max_flavors: editingSpecialty.category === 'bolos' ? 2 : 1,
+          min_addons: (editingSpecialty.category === 'bolos' || editingSpecialty.category === 'bento') ? 1 : 0,
+          batters: editingSpecialty.category === 'bolos' || editingSpecialty.category === 'bento' ? [
+            { id: 'bat-1', name: 'Massa Amanteigada de Baunilha', description: 'Estruturada, leve e aveludada', additional_price: 0, active: true },
+            { id: 'bat-2', name: 'Massa de Chocolate 50% Cacau', description: 'Úmida e marcante com cacau nobre', additional_price: 0, active: true },
+          ] : [],
+          variations: [],
+          flavors: [
+            { id: 'flav-1', name: 'Ninho com Morangos Frescos', description: 'Recheio cremoso clássico', additional_price: 0, active: true },
+            { id: 'flav-2', name: 'Brigadeiro Belga 54%', description: 'Chocolate nobre', additional_price: 0, active: true },
+          ],
+          packaging: [
+            { id: 'pack-1', name: 'Embalagem Segura de Transporte', description: 'Caixa reforçada', additional_price: 0, is_required: true, active: true }
+          ],
+          addons: [
+            { id: 'add-1', name: 'Topo Personalizado com Nome', description: 'Papelaria afetiva', price: 20, unit: 'unidade', active: true }
+          ]
+        };
+        updatedProducts.push(newProduct);
+      }
+
+      return {
+        ...prev,
+        specialties: updatedSpecialties,
+        products: updatedProducts,
+      };
     });
 
-    success('Especialidade salva!');
+    success('Especialidade salva e sincronizada no Catálogo de Produtos!');
     setEditingSpecialty(null);
   };
 

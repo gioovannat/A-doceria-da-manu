@@ -264,6 +264,7 @@ export interface OrderEvent {
   delivery_type: string;
   location?: string;
   notes?: string;
+  inspiration_photo?: string;
   estimated_total: number;
   formatted_message: string;
 }

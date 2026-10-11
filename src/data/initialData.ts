@@ -207,9 +207,9 @@ export const INITIAL_DATABASE: AppDatabase = {
 
   products: [
     {
-      id: 'prod-bolo-vintage',
-      name: 'Bolo Vintage Heart Cake',
-      slug: 'bolo-vintage-heart-cake',
+      id: 'bolos-decorados',
+      name: 'Bolos Decorados & Vintage',
+      slug: 'bolos-decorados',
       short_description: 'Bolo decorado em formato de coração estilo Lambeth retro com laços ou cerejas.',
       full_description: 'Bolo estruturado com massa amanteigada de baunilha ou chocolate, 2 camadas generosas de recheio nobre e cobertura sedosa de buttercream ou chantininho.',
       category: 'bolos',
@@ -234,9 +234,9 @@ export const INITIAL_DATABASE: AppDatabase = {
         { id: 'bat-4', name: 'Massa Mesclada (Baunilha & Chocolate)', description: 'O equilíbrio perfeito entre os dois sabores', additional_price: 0, active: true },
       ],
       variations: [
-        { id: 'var-v1', product_id: 'prod-bolo-vintage', name: 'Pequeno (15 a 18 fatias)', description: 'Diâmetro 15cm x 12cm altura', price: 130, unit: 'unidade', lead_time: '48h', active: true },
-        { id: 'var-v2', product_id: 'prod-bolo-vintage', name: 'Médio (22 a 25 fatias)', description: 'Diâmetro 18cm x 12cm altura', price: 175, unit: 'unidade', lead_time: '48h', active: true },
-        { id: 'var-v3', product_id: 'prod-bolo-vintage', name: 'Grande (30 a 35 fatias)', description: 'Diâmetro 22cm x 12cm altura', price: 230, unit: 'unidade', lead_time: '72h', active: true },
+        { id: 'var-v1', product_id: 'bolos-decorados', name: 'Pequeno (15 a 18 fatias)', description: 'Diâmetro 15cm x 12cm altura', price: 130, unit: 'unidade', lead_time: '48h', active: true },
+        { id: 'var-v2', product_id: 'bolos-decorados', name: 'Médio (22 a 25 fatias)', description: 'Diâmetro 18cm x 12cm altura', price: 175, unit: 'unidade', lead_time: '48h', active: true },
+        { id: 'var-v3', product_id: 'bolos-decorados', name: 'Grande (30 a 35 fatias)', description: 'Diâmetro 22cm x 12cm altura', price: 230, unit: 'unidade', lead_time: '72h', active: true },
       ],
       flavors: [
         { id: 'flav-v1', name: 'Ninho com Morangos Frescos', description: 'Creme de Leite Ninho com pedaços de morango selecionado', additional_price: 0, category: 'Mais Pedidos', active: true },
@@ -258,9 +258,9 @@ export const INITIAL_DATABASE: AppDatabase = {
       ]
     },
     {
-      id: 'prod-bento',
-      name: 'Bentô Cake Clamshell',
-      slug: 'bento-cake-clamshell',
+      id: 'bento-cake',
+      name: 'Bentô Cake',
+      slug: 'bento-cake',
       short_description: 'Mini bolo de 10cm com mensagem, frase engraçada ou desenho feito à mão.',
       full_description: 'Acompanha caixinha ecológica clamshell, fita de cetim, mini velinha palito e colher descartável de bambu/biodegradável.',
       category: 'bento',
@@ -283,7 +283,7 @@ export const INITIAL_DATABASE: AppDatabase = {
         { id: 'bat-b2', name: 'Massa de Chocolate Cacau 50%', description: 'Molhadinha e saborosa', additional_price: 0, active: true },
       ],
       variations: [
-        { id: 'var-b1', product_id: 'prod-bento', name: 'Padrão Clamshell (400g)', description: 'Até 4 fatias com vela palito e colherzinha', price: 45, unit: 'unidade', lead_time: '24h', active: true },
+        { id: 'var-b1', product_id: 'bento-cake', name: 'Padrão Clamshell (400g)', description: 'Até 4 fatias com vela palito e colherzinha', price: 45, unit: 'unidade', lead_time: '24h', active: true },
       ],
       flavors: [
         { id: 'flav-b1', name: 'Brigadeiro Belga Tradicional', description: 'Chocolate meio amargo com confeitos crocantes', additional_price: 0, category: 'Mais Pedidos', active: true },
@@ -301,9 +301,9 @@ export const INITIAL_DATABASE: AppDatabase = {
       ]
     },
     {
-      id: 'prod-kit-festa-20',
-      name: 'Kit Festa Prata (20 pessoas)',
-      slug: 'kit-festa-prata-20',
+      id: 'kit-festa',
+      name: 'Kit Festa Completo',
+      slug: 'kit-festa',
       short_description: '1 Bolo decorado 20 fatias + 60 docinhos gourmet + 100 salgadinhos artesanais.',
       full_description: 'O combo perfeito para reunir a família com tranquilidade. Tudo fresquinho e entregue pronto para servir.',
       category: 'kits',
@@ -318,9 +318,9 @@ export const INITIAL_DATABASE: AppDatabase = {
       featured: true,
       sort_order: 3,
       variations: [
-        { id: 'var-k1', product_id: 'prod-kit-festa-20', name: 'Kit 10 Pessoas (Bolo 10 fatias + 30 doces + 50 salgados)', description: 'Ideal para festas íntimas', price: 180, unit: 'kit', lead_time: '48h', active: true },
-        { id: 'var-k2', product_id: 'prod-kit-festa-20', name: 'Kit 20 Pessoas (Bolo 20 fatias + 60 doces + 100 salgados)', description: 'Nosso kit mais vendido', price: 260, unit: 'kit', lead_time: '72h', active: true },
-        { id: 'var-k3', product_id: 'prod-kit-festa-20', name: 'Kit 30 Pessoas (Bolo 30 fatias + 100 doces + 150 salgados)', description: 'Para comemorações completas', price: 370, unit: 'kit', lead_time: '72h', active: true },
+        { id: 'var-k1', product_id: 'kit-festa', name: 'Kit 10 Pessoas (Bolo 10 fatias + 30 doces + 50 salgados)', description: 'Ideal para festas íntimas', price: 180, unit: 'kit', lead_time: '48h', active: true },
+        { id: 'var-k2', product_id: 'kit-festa', name: 'Kit 20 Pessoas (Bolo 20 fatias + 60 doces + 100 salgados)', description: 'Nosso kit mais vendido', price: 260, unit: 'kit', lead_time: '72h', active: true },
+        { id: 'var-k3', product_id: 'kit-festa', name: 'Kit 30 Pessoas (Bolo 30 fatias + 100 doces + 150 salgados)', description: 'Para comemorações completas', price: 370, unit: 'kit', lead_time: '72h', active: true },
       ],
       flavors: [
         { id: 'flav-k1', name: 'Bolo: Ninho com Morangos Frescos', description: 'Recheio suave de Ninho com morangos', additional_price: 0, category: 'Mais Pedidos', active: true },
@@ -336,9 +336,9 @@ export const INITIAL_DATABASE: AppDatabase = {
       ]
     },
     {
-      id: 'prod-cento-brigadeiros',
-      name: 'Cento de Docinhos Finos',
-      slug: 'cento-docinhos-finos',
+      id: 'docinhos-finos',
+      name: 'Docinhos & Brigadeiros Gourmet',
+      slug: 'docinhos-finos',
       short_description: '100 docinhos gourmet com até 4 sabores à sua escolha.',
       full_description: 'Brigadeiro Belga 54%, Ninho com Nutella, Pistache Italiano, Churros com Doce de Leite e Beijinho de Coco Fresco.',
       category: 'doces',
@@ -353,8 +353,8 @@ export const INITIAL_DATABASE: AppDatabase = {
       featured: false,
       sort_order: 4,
       variations: [
-        { id: 'var-d1', product_id: 'prod-cento-brigadeiros', name: 'Meio Cento (50 unidades - até 2 sabores)', description: 'Caixa com 50 doces finos', price: 50, unit: 'caixa', lead_time: '24h', active: true },
-        { id: 'var-d2', product_id: 'prod-cento-brigadeiros', name: 'Cento Completo (100 unidades - até 4 sabores)', description: 'Cento tradicional para festas', price: 90, unit: 'cento', lead_time: '48h', active: true },
+        { id: 'var-d1', product_id: 'docinhos-finos', name: 'Meio Cento (50 unidades - até 2 sabores)', description: 'Caixa com 50 doces finos', price: 50, unit: 'caixa', lead_time: '24h', active: true },
+        { id: 'var-d2', product_id: 'docinhos-finos', name: 'Cento Completo (100 unidades - até 4 sabores)', description: 'Cento tradicional para festas', price: 90, unit: 'cento', lead_time: '48h', active: true },
       ],
       flavors: [
         { id: 'flav-d1', name: 'Brigadeiro Belga Tradicional 54%', description: 'Confeito split Callebaut nobre', additional_price: 0, category: 'Gourmet', active: true },
@@ -370,6 +370,79 @@ export const INITIAL_DATABASE: AppDatabase = {
       addons: [
         { id: 'add-d1', name: 'Forminhas Florais Quatro Pétalas (50 un)', description: 'Forminhas decorativas artesanais', price: 20, unit: 'kit', active: true },
         { id: 'add-d2', name: 'Tags Personalizadas para cada Doce', description: 'Plaquinhas personalizadas com o tema', price: 15, unit: 'cento', active: true },
+      ]
+    },
+    {
+      id: 'salgados-artesanais',
+      name: 'Salgados Artesanais',
+      slug: 'salgados-artesanais',
+      short_description: 'Cento ou meio cento de salgadinhos fritos e assados artesanais sequinhos e crocantes.',
+      full_description: 'Coxinhas douradas com massa leve de batata, empadinhas que derretem na boca, quibes temperados, bolinhas de queijo e folhados finos preparados no dia da sua festa.',
+      category: 'salgados',
+      main_image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=800&q=80',
+      gallery: ['https://images.unsplash.com/photo-1589301760014-d929f3979dbc?auto=format&fit=crop&w=800&q=80'],
+      starting_price: 85,
+      starting_price_display: 'R$ 85,00',
+      unit: 'cento (100 un.)',
+      minimum_notice: '48h',
+      badge: 'Crocância Perfeita',
+      active: true,
+      featured: false,
+      sort_order: 5,
+      variations: [
+        { id: 'var-salg-1', product_id: 'salgados-artesanais', name: 'Meio Cento (50 salgados fritos ou assados)', description: 'Até 2 sabores à escolha', price: 48, unit: 'caixa', lead_time: '24h', active: true },
+        { id: 'var-salg-2', product_id: 'salgados-artesanais', name: 'Cento Completo Frito (100 salgados)', description: 'Até 4 sabores tradicionais', price: 85, unit: 'cento', lead_time: '48h', active: true },
+        { id: 'var-salg-3', product_id: 'salgados-artesanais', name: 'Cento Especial Assado / Folhados (100 salgados)', description: 'Empadas e folhados nobres', price: 95, unit: 'cento', lead_time: '48h', active: true },
+      ],
+      flavors: [
+        { id: 'flav-salg-1', name: 'Coxinha de Frango Cremosa com Requeijão', description: 'Massa leve de batata e peito de frango selecionado', additional_price: 0, category: 'Fritos', active: true },
+        { id: 'flav-salg-2', name: 'Bolinha de Queijo Crocante', description: 'Massa crocante com muçarela derretida e orégano', additional_price: 0, category: 'Fritos', active: true },
+        { id: 'flav-salg-3', name: 'Quibe Tradicional Árabe com Hortelã', description: 'Carne bovina temperada e hortelã fresca', additional_price: 0, category: 'Fritos', active: true },
+        { id: 'flav-salg-4', name: 'Empadinha de Frango com Catupiry', description: 'Massa podre artesanal que desmancha na boca', additional_price: 0, category: 'Assados', active: true },
+        { id: 'flav-salg-5', name: 'Folhado de Queijo e Presunto Royale', description: 'Massa folhada amanteigada com queijo e presunto', additional_price: 5, category: 'Assados', active: true },
+        { id: 'flav-salg-6', name: 'Enroladinho de Salsicha Especial Dourado', description: 'Massa fofa assada pincelada com gergelim', additional_price: 0, category: 'Assados', active: true },
+      ],
+      packaging: [
+        { id: 'pack-salg-1', name: 'Caixa Térmica Especial para Salgados', description: 'Mantém o calor e a crocância durante o transporte', additional_price: 0, is_required: true, active: true },
+      ],
+      addons: [
+        { id: 'add-salg-1', name: 'Molho Rosé com Ervas Finas da Manu (Pote 200ml)', description: 'Molho artesanal para mergulhar salgadinhos', price: 12, unit: 'pote', active: true },
+        { id: 'add-salg-2', name: 'Geleia de Pimenta Defumada (Pote 150ml)', description: 'Harmonização perfeita para quibes e coxinhas', price: 15, unit: 'pote', active: true },
+      ]
+    },
+    {
+      id: 'festa-na-escola',
+      name: 'Festa na Escola',
+      slug: 'festa-na-escola',
+      short_description: 'Kits individuais completos e higiênicos para comemoração prática na sala de aula.',
+      full_description: 'Pensado para a alegria das crianças e praticidade dos pais. Caixinhas individuais personalizadas com lanchinho, suco, mini bolo e docinhos higienizados.',
+      category: 'escola',
+      main_image: 'https://images.unsplash.com/photo-1535141192574-5d4897c13136?auto=format&fit=crop&w=800&q=80',
+      gallery: ['https://images.unsplash.com/photo-1535141192574-5d4897c13136?auto=format&fit=crop&w=800&q=80'],
+      starting_price: 22,
+      starting_price_display: 'R$ 22,00/aluno',
+      unit: 'kit individual por aluno',
+      minimum_notice: '72h',
+      badge: 'Super Prático',
+      active: true,
+      featured: false,
+      sort_order: 6,
+      variations: [
+        { id: 'var-esc-1', product_id: 'festa-na-escola', name: 'Kit Escola Individual Básico (Lanche + Suco + Mini Bolo + 2 Doces)', description: 'Mínimo de 10 kits por pedido', price: 22, unit: 'kit', lead_time: '72h', active: true },
+        { id: 'var-esc-2', product_id: 'festa-na-escola', name: 'Kit Escola Individual Completo (Sanduíche + 4 Salgados + Suco + Bolo + 2 Doces)', description: 'Mínimo de 10 kits por pedido', price: 28, unit: 'kit', lead_time: '72h', active: true },
+      ],
+      flavors: [
+        { id: 'flav-esc-1', name: 'Mini Bolo: Chocolate com Brigadeiro Cremoso', description: 'O sabor favorito da criançada', additional_price: 0, category: 'Mini Bolos', active: true },
+        { id: 'flav-esc-2', name: 'Mini Bolo: Cenoura Fofinho com Calda de Chocolate', description: 'Tradicional e delicioso', additional_price: 0, category: 'Mini Bolos', active: true },
+        { id: 'flav-esc-3', name: 'Mini Bolo: Baunilha com Recheio Suave de Ninho', description: 'Suave e aveludado', additional_price: 0, category: 'Mini Bolos', active: true },
+      ],
+      packaging: [
+        { id: 'pack-esc-1', name: 'Maleta Individual Lacrada e Higiênica', description: 'Caixinha com talher biodegradável e guardanapo descartável', additional_price: 0, is_required: true, active: true },
+        { id: 'pack-esc-2', name: 'Maleta Personalizada com Nome e Tema da Criança', description: 'Adesivo temático colorido com nome e idade do aniversariante', additional_price: 4, is_required: false, active: true },
+      ],
+      addons: [
+        { id: 'add-esc-1', name: 'Kit Parabéns (Chapéu Festivo + Língua de Sogra por Aluno)', description: 'Adereços divertidos para cantar os parabéns na classe', price: 3.5, unit: 'kit/aluno', active: true },
+        { id: 'add-esc-2', name: 'Vela Faísca Cintilante Especial', description: 'Vela cintilante segura para a hora dos parabéns', price: 8, unit: 'unidade', active: true },
       ]
     }
   ],

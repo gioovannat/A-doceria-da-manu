@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppDatabase, Product, ProductVariation, Flavor, PackagingOption, Addon, CakeBatter } from '../../../types';
 import { Card } from '../../ui/Card';
 import { Input } from '../../ui/Input';
@@ -23,7 +23,8 @@ import {
   Layers, 
   Gift,
   ArrowRight,
-  Info
+  Info,
+  RefreshCw
 } from 'lucide-react';
 import { useToast } from '../../ui/Toast';
 
@@ -39,13 +40,23 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [productActiveTab, setProductActiveTab] = useState<'geral' | 'massas' | 'variacoes' | 'sabores' | 'embalagens' | 'adicionais'>('geral');
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
+
+  const categoryLabels: Record<string, string> = {
+    bolos: 'Bolos Decorados',
+    bento: 'Bentô Cakes',
+    kits: 'Kits Festa',
+    doces: 'Doces Gourmet',
+    salgados: 'Salgados Artesanais',
+    escola: 'Festa na Escola',
+  };
 
   // Sub-items temporary forms inside the product modal
   const [newBatter, setNewBatter] = useState({ name: '', description: '', additional_price: 0 });
   const [newVariation, setNewVariation] = useState({ name: '', description: '', price: 0, unit: 'unidade', lead_time: '48h' });
   const [newFlavor, setNewFlavor] = useState({ name: '', description: '', additional_price: 0 });
   const [newPackaging, setNewPackaging] = useState({ name: '', description: '', additional_price: 0, is_required: false });
-  const [newAddon, setNewAddon] = useState({ name: '', description: '', price: 15, unit: 'unidade', image: '' });
+  const [newAddon, setNewAddon] = useState({ name: '', description: '', price: 15, unit: 'unidade' });
 
   // ----------------------------------------------------------------------
   // Product handlers
@@ -105,14 +116,48 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
     if (!editingProduct) return;
 
     onChange((prev) => {
-      const exists = prev.products.some((p) => p.id === editingProduct.id);
-      const updatedList = exists
-        ? prev.products.map((p) => (p.id === editingProduct.id ? editingProduct : p))
-        : [...prev.products, editingProduct];
-      return { ...prev, products: updatedList };
+      // 1. Atualiza o produto na lista de produtos sem gerar duplicidade
+      const productIndex = prev.products.findIndex(
+        (p) => p.id === editingProduct.id || p.category === editingProduct.category || p.slug === editingProduct.slug
+      );
+      let updatedProducts = [...prev.products];
+      if (productIndex >= 0) {
+        updatedProducts[productIndex] = editingProduct;
+      } else {
+        updatedProducts.push(editingProduct);
+      }
+
+      // 2. Sincroniza imediatamente na especialidade correspondente:
+      // Quando modificado no cardápio, a especialidade no site também é atualizada
+      const specialtyIndex = prev.specialties.findIndex(
+        (s) => s.id === editingProduct.id || s.category === editingProduct.category || s.slug === editingProduct.slug
+      );
+
+      let updatedSpecialties = [...prev.specialties];
+      if (specialtyIndex >= 0) {
+        const existingSpec = updatedSpecialties[specialtyIndex];
+        updatedSpecialties[specialtyIndex] = {
+          ...existingSpec,
+          title: editingProduct.name,
+          slug: editingProduct.slug,
+          description: editingProduct.full_description,
+          image: editingProduct.main_image,
+          badge: editingProduct.badge,
+          startingPrice: editingProduct.starting_price_display,
+          serves: editingProduct.unit,
+          active: editingProduct.active,
+          featured: editingProduct.featured,
+        };
+      }
+
+      return {
+        ...prev,
+        products: updatedProducts,
+        specialties: updatedSpecialties,
+      };
     });
 
-    success('Produto e todas as suas configurações foram salvos!');
+    success('Produto e especialidade vinculada foram atualizados com sucesso!');
     setEditingProduct(null);
   };
 
@@ -261,14 +306,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
       description: newAddon.description,
       price: Number(newAddon.price) || 0,
       unit: newAddon.unit || 'unidade',
-      image: newAddon.image || undefined,
       active: true,
     };
     setEditingProduct({
       ...editingProduct,
       addons: [...(editingProduct.addons || []), item],
     });
-    setNewAddon({ name: '', description: '', price: 15, unit: 'unidade', image: '' });
+    setNewAddon({ name: '', description: '', price: 15, unit: 'unidade' });
     success('Adicional vinculado exclusivamente a este produto!');
   };
 
@@ -296,25 +340,63 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
         title="Produtos & Cardápio Completo"
         subtitle="Gerencie todos os itens comercializados e clique em cada um para personalizar seus recheios, embalagens e adicionais."
         headerAction={
-          <Button
-            size="sm"
-            variant="primary"
-            icon={<Plus className="w-4 h-4" />}
-            onClick={handleCreateNewProduct}
-          >
-            Criar Novo Produto
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
+              onClick={handleCreateNewProduct}
+            >
+              Criar Novo Produto
+            </Button>
+          </div>
         }
       >
+        {/* Category Filter Pills */}
+        <div className="flex flex-wrap items-center gap-2 pb-4 mb-2 border-b border-[#FAD0DE]/60">
+          <button
+            onClick={() => setSelectedCategoryFilter('all')}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
+              selectedCategoryFilter === 'all'
+                ? 'bg-[#D81E5B] text-white shadow-xs'
+                : 'bg-white text-[#7B535F] hover:bg-[#FFF0F4] border border-[#FAD0DE]'
+            }`}
+          >
+            Todos ({data.products.length})
+          </button>
+          {Object.entries(categoryLabels).map(([catKey, catLabel]) => {
+            const count = data.products.filter((p) => p.category === catKey).length;
+            return (
+              <button
+                key={catKey}
+                onClick={() => setSelectedCategoryFilter(catKey)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedCategoryFilter === catKey
+                    ? 'bg-[#D81E5B] text-white shadow-xs'
+                    : 'bg-white text-[#7B535F] hover:bg-[#FFF0F4] border border-[#FAD0DE]'
+                }`}
+              >
+                <span>{catLabel}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  selectedCategoryFilter === catKey ? 'bg-white/30 text-white' : 'bg-[#FFF0F4] text-[#D81E5B]'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
-          {data.products.map((prod) => {
+          {data.products
+            .filter((p) => selectedCategoryFilter === 'all' || p.category === selectedCategoryFilter)
+            .map((prod) => {
             const numBatters = prod.batters?.length || 0;
             const numVariations = prod.variations?.length || 0;
             const numFlavors = prod.flavors?.length || 0;
             const numPackaging = prod.packaging?.length || 0;
             const numAddons = prod.addons?.length || 0;
             const isCakeCategory = prod.category === 'bolos' || prod.category === 'bento';
-            const isSalgadosCategory = prod.category === 'salgados';
 
             return (
               <div
@@ -345,8 +427,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                 <div className="p-5 flex-1 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-bold text-[#E05A2B] uppercase tracking-wider">
-                        {prod.category}
+                      <span className="text-[11px] font-bold text-[#E05A2B] uppercase tracking-wider bg-[#FFF2F6] px-2 py-0.5 rounded-md border border-[#FAD0DE]/60">
+                        {categoryLabels[prod.category] || prod.category}
                       </span>
                       <span className="text-[11px] text-[#7A505D]">{prod.minimum_notice}</span>
                     </div>
@@ -359,20 +441,26 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                       {prod.full_description}
                     </p>
 
-                    {/* Regras configuradas para aparecer no orçamento final */}
-                    {(prod.requires_batter || (prod.min_flavors || 0) > 0 || (prod.min_addons || 0) > 0) && (
+                    {/* Regras obrigatórias do produto */}
+                    {(prod.category === 'bolos' || prod.category === 'bento' || prod.requires_batter || (prod.min_flavors && prod.min_flavors > 0)) && (
                       <div className="flex flex-wrap gap-1.5 mb-3.5">
-                        {prod.requires_batter && <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]"><Check className="w-3 h-3 text-[#D81E5B]" /> 1 Massa Obrigatória</span>}
-                        {(prod.min_flavors || 0) > 0 && <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]"><Check className="w-3 h-3 text-[#D81E5B]" /> {prod.min_flavors} Recheio{prod.min_flavors === 1 ? '' : 's'} Obrigatório{prod.min_flavors === 1 ? '' : 's'}</span>}
-                        {(prod.min_addons || 0) > 0 && <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]"><Check className="w-3 h-3 text-[#D81E5B]" /> Mín. {prod.min_addons} Adicional{prod.min_addons === 1 ? '' : 'ais'}</span>}
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]">
+                          <Check className="w-3 h-3 text-[#D81E5B]" /> Massa Obrigatória
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]">
+                          <Check className="w-3 h-3 text-[#D81E5B]" /> {prod.min_flavors ?? (prod.category === 'bento' ? 1 : 2)} {(prod.min_flavors ?? (prod.category === 'bento' ? 1 : 2)) === 1 ? 'Recheio Obrigatório' : 'Recheios Obrigatórios'}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]">
+                          <Check className="w-3 h-3 text-[#D81E5B]" /> Mín. {prod.min_addons || 1} Adicional
+                        </span>
                       </div>
                     )}
 
                     {/* Botões de acesso rápido às particularidades do produto */}
-                    <div className={`grid gap-2 mb-4 ${isCakeCategory ? 'grid-cols-2 sm:grid-cols-3' : isSalgadosCategory ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-4'}`}>
+                    <div className={`grid gap-2 mb-4 ${isCakeCategory ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
                       
-                      {/* Massas exclusivo para bolos ou se configurado; salgados não usam massa configurável */}
-                      {!isSalgadosCategory && (isCakeCategory || numBatters > 0) && (
+                      {/* Massas exclusivo para bolos ou se configurado */}
+                      {(isCakeCategory || numBatters > 0) && (
                         <button
                           type="button"
                           onClick={() => handleOpenEditProduct(prod, 'massas')}
@@ -391,14 +479,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                         onClick={() => handleOpenEditProduct(prod, 'variacoes')}
                         className="p-2 rounded-xl bg-[#FFF9FB] hover:bg-[#FFF0F4] border border-[#FAD0DE] text-left transition-colors cursor-pointer group"
                       >
-                        <span className="block text-[10px] font-bold text-[#7A505D] uppercase">{isSalgadosCategory ? 'Quantidade obrigatória' : 'Tamanhos'}</span>
+                        <span className="block text-[10px] font-bold text-[#7A505D] uppercase">Tamanhos</span>
                         <span className="text-xs font-bold text-[#D81E5B] flex items-center gap-1">
                           <Layers className="w-3 h-3" />
                           {numVariations} opções
                         </span>
                       </button>
 
-                      {!isSalgadosCategory && <button
+                      <button
                         type="button"
                         onClick={() => handleOpenEditProduct(prod, 'sabores')}
                         className="p-2 rounded-xl bg-[#FFF9FB] hover:bg-[#FFF0F4] border border-[#FAD0DE] text-left transition-colors cursor-pointer group"
@@ -408,9 +496,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                           <Sparkles className="w-3 h-3" />
                           {numFlavors} sabores
                         </span>
-                      </button>}
+                      </button>
 
-                      {!isSalgadosCategory && <button
+                      <button
                         type="button"
                         onClick={() => handleOpenEditProduct(prod, 'embalagens')}
                         className="p-2 rounded-xl bg-[#FFF9FB] hover:bg-[#FFF0F4] border border-[#FAD0DE] text-left transition-colors cursor-pointer group"
@@ -420,9 +508,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                           <Box className="w-3 h-3" />
                           {numPackaging} opções
                         </span>
-                      </button>}
+                      </button>
 
-                      {!isSalgadosCategory && <button
+                      <button
                         type="button"
                         onClick={() => handleOpenEditProduct(prod, 'adicionais')}
                         className="p-2 rounded-xl bg-[#FFF9FB] hover:bg-[#FFF0F4] border border-[#FAD0DE] text-left transition-colors cursor-pointer group"
@@ -432,7 +520,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                           <Gift className="w-3 h-3" />
                           {numAddons} itens
                         </span>
-                      </button>}
+                      </button>
 
                     </div>
                   </div>
@@ -490,15 +578,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
           <div className="flex items-center gap-1.5 p-1 bg-[#FFF0F4] rounded-2xl border border-[#FAD0DE] mb-6 overflow-x-auto">
             {[
               { id: 'geral', label: '1. Dados Gerais', icon: <Cake className="w-4 h-4" /> },
-              ...(editingProduct.category !== 'salgados' && (editingProduct.category === 'bolos' || editingProduct.category === 'bento' || (editingProduct.batters && editingProduct.batters.length > 0)) ? [
+              ...(editingProduct.category === 'bolos' || editingProduct.category === 'bento' || (editingProduct.batters && editingProduct.batters.length > 0) ? [
                 { id: 'massas', label: `2. Massas (${editingProduct.batters?.length || 0})`, icon: <Cake className="w-4 h-4 text-[#D81E5B]" /> }
               ] : []),
-              { id: 'variacoes', label: editingProduct.category === 'salgados' ? `Quantidade obrigatória (${editingProduct.variations?.length || 0})` : `Tamanhos (${editingProduct.variations?.length || 0})`, icon: <Layers className="w-4 h-4" /> },
-              ...(editingProduct.category === 'salgados' ? [] : [
-                { id: 'sabores', label: `Recheios (${editingProduct.flavors?.length || 0})`, icon: <Sparkles className="w-4 h-4" /> },
-                { id: 'embalagens', label: `Embalagens (${editingProduct.packaging?.length || 0})`, icon: <Box className="w-4 h-4" /> },
-                { id: 'adicionais', label: `Adicionais (${editingProduct.addons?.length || 0})`, icon: <Gift className="w-4 h-4" /> },
-              ]),
+              { id: 'variacoes', label: `Tamanhos (${editingProduct.variations?.length || 0})`, icon: <Layers className="w-4 h-4" /> },
+              { id: 'sabores', label: `Recheios (${editingProduct.flavors?.length || 0})`, icon: <Sparkles className="w-4 h-4" /> },
+              { id: 'embalagens', label: `Embalagens (${editingProduct.packaging?.length || 0})`, icon: <Box className="w-4 h-4" /> },
+              { id: 'adicionais', label: `Adicionais (${editingProduct.addons?.length || 0})`, icon: <Gift className="w-4 h-4" /> },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -643,7 +729,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                     </h5>
                   </div>
                   <p className="text-[11px] text-[#7A505D] leading-relaxed">
-                    Defina as exigências de montagem para este produto — bolo, bentô cake, kit festa ou docinhos finos. O cliente verá essas escolhas no orçamento e o valor de cada opção será somado ao pedido final.
+                    Defina as exigências de montagem para o cliente (ex: escolha obrigatória de massa, 2 tipos de recheio e no mínimo 1 adicional). O conjunto de tudo selecionado é contabilizado no pedido final do cliente.
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
@@ -703,7 +789,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
 
                   <div className="p-2.5 rounded-xl bg-[#FFF0F4] text-[11px] text-[#B8134B] font-medium flex items-center gap-2">
                     <Info className="w-4 h-4 shrink-0" />
-                    <span>O orçamento final soma o preço base, as variações, as opções obrigatórias e todos os adicionais selecionados pelo cliente.</span>
+                    <span>O valor final soma: Tamanho do Bolo + Massa + 2 Recheios + Embalagem + Adicionais selecionados!</span>
                   </div>
                 </div>
               </div>
@@ -1094,21 +1180,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                         key={a.id}
                         className="p-3.5 rounded-2xl bg-white border border-[#FAD0DE] flex items-center justify-between gap-3 shadow-2xs"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          {a.image ? (
-                            <img src={a.image} alt={`Prévia de ${a.name}`} className="w-14 h-14 rounded-xl object-cover border border-[#FAD0DE] shrink-0" />
-                          ) : (
-                            <div className="w-14 h-14 rounded-xl bg-[#FFF0F4] border border-dashed border-[#F8B4C9] flex items-center justify-center text-[10px] text-[#B8134B] text-center shrink-0">Sem foto</div>
-                          )}
-                          <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
+                        <div>
+                          <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-[#3D1E26]">{a.name}</span>
                             <span className="text-xs font-bold text-[#D81E5B]">
                               + R$ {a.price.toFixed(2)} /{a.unit}
                             </span>
                           </div>
                           {a.description && <p className="text-[11px] text-[#7A505D] mt-0.5">{a.description}</p>}
-                          </div>
                         </div>
 
                         <button
@@ -1151,11 +1230,6 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                     placeholder="Descrição do adicional (ex: Nome e idade em acrílico ou papelaria)"
                     value={newAddon.description}
                     onChange={(e) => setNewAddon({ ...newAddon, description: e.target.value })}
-                  />
-                  <ImageUploader
-                    label="Imagem do adicional para visualização do cliente"
-                    value={newAddon.image}
-                    onChange={(url) => setNewAddon({ ...newAddon, image: url })}
                   />
                   <Button
                     type="button"

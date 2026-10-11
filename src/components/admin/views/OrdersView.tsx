@@ -207,13 +207,13 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
             />
 
             <Select
-              label="Forma de Retirada"
+              label="Forma de Recebimento"
               value={deliveryType}
               onChange={(e) => setDeliveryType(e.target.value)}
               options={[
-                { value: 'Retirada no Ateliê', label: 'Retirada presencial no ateliê' },
-                { value: 'Entrega Paço do Lumiar', label: 'Entrega em Paço do Lumiar' },
-                { value: 'Entrega São Luís', label: 'Entrega em São Luís / Ribamar' },
+                { value: 'Retirada no Ateliê (Cliente retira ou Uber Flash/99)', label: 'Retirada no Ateliê (Cliente busca ou Uber Flash / 99)' },
+                { value: 'Retirada presencial no Ateliê', label: 'Retirada presencial pelo cliente' },
+                { value: 'Envio Uber Flash / 99 Entregas (Pago pelo cliente)', label: 'Envio Uber Flash / 99 Entregas' },
               ]}
             />
           </div>
@@ -321,9 +321,15 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
                 </div>
 
                 <div className="text-xs text-[#6B4651] space-y-1">
-                  <p><strong>Recheios:</strong> {ord.flavors?.join(', ') || 'Não especificado'}</p>
+                  <p><strong>Recheios / Sabores:</strong> {ord.flavors?.join(', ') || 'Não especificado'}</p>
                   {ord.packaging && <p><strong>Embalagem:</strong> {ord.packaging}</p>}
                   {ord.notes && <p><strong>Observações:</strong> {ord.notes}</p>}
+                  {ord.inspiration_photo && (
+                    <p className="text-[#D81E5B] font-semibold flex items-center gap-1.5 pt-0.5">
+                      <span>📸 Foto de Inspiração:</span>
+                      <span className="font-normal text-[#3D1E26]">{ord.inspiration_photo}</span>
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

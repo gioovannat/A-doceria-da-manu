@@ -46,28 +46,119 @@ class StoreService {
       const stored = localStorage.getItem(key);
       if (stored) {
         const parsed = JSON.parse(stored);
-        // Ensure products have their sub-arrays if migrating from earlier schema
-        const mergedProducts = (parsed.products || fallback.products).map((p: any) => {
-          const fallbackProd = fallback.products.find((fp) => fp.id === p.id);
-          return {
-            ...p,
-            batters: p.batters && p.batters.length > 0 ? p.batters : (fallbackProd?.batters || []),
-            variations: p.variations && p.variations.length > 0 ? p.variations : (fallbackProd?.variations || []),
-            flavors: p.flavors && p.flavors.length > 0 ? p.flavors : (fallbackProd?.flavors || []),
-            packaging: p.packaging && p.packaging.length > 0 ? p.packaging : (fallbackProd?.packaging || []),
-            addons: p.addons && p.addons.length > 0 ? p.addons : (fallbackProd?.addons || []),
-          };
-        });
+        
+        // 1. Process specialties: deduplicate by category and id
+        const rawSpecialties: any[] = parsed.specialties && parsed.specialties.length > 0 
+          ? parsed.specialties 
+          : fallback.specialties;
+        
+        const dedupedSpecialties: any[] = [];
+        for (const spec of rawSpecialties) {
+          const cat = spec.category?.trim().toLowerCase();
+          const existingIndex = dedupedSpecialties.findIndex(
+            (s) => s.id === spec.id || (cat && s.category?.toLowerCase() === cat)
+          );
+          if (existingIndex >= 0) {
+            dedupedSpecialties[existingIndex] = { ...dedupedSpecialties[existingIndex], ...spec };
+          } else {
+            dedupedSpecialties.push(spec);
+          }
+        }
+        for (const fs of fallback.specialties) {
+          const cat = fs.category?.trim().toLowerCase();
+          const exists = dedupedSpecialties.some((s) => s.id === fs.id || (cat && s.category?.toLowerCase() === cat));
+          if (!exists) {
+            dedupedSpecialties.push(fs);
+          }
+        }
 
-        return {
+        // 2. Process products: deduplicate by category, id and name
+        const rawProducts: any[] = parsed.products && parsed.products.length > 0
+          ? parsed.products
+          : fallback.products;
+
+        const dedupedProducts: any[] = [];
+        for (const prod of rawProducts) {
+          const cat = prod.category?.trim().toLowerCase();
+          const existingIndex = dedupedProducts.findIndex((p) => {
+            if (p.id === prod.id) return true;
+            if (cat && p.category && p.category.toLowerCase() === cat) return true;
+            if (p.name && prod.name && p.name.trim().toLowerCase() === prod.name.trim().toLowerCase()) return true;
+            return false;
+          });
+
+          const fallbackProd = fallback.products.find(
+            (fp) => fp.id === prod.id || fp.category === prod.category || fp.slug === prod.slug
+          );
+
+          const fullProd = {
+            ...prod,
+            batters: prod.batters && prod.batters.length > 0 ? prod.batters : (fallbackProd?.batters || []),
+            variations: prod.variations && prod.variations.length > 0 ? prod.variations : (fallbackProd?.variations || []),
+            flavors: prod.flavors && prod.flavors.length > 0 ? prod.flavors : (fallbackProd?.flavors || []),
+            packaging: prod.packaging && prod.packaging.length > 0 ? prod.packaging : (fallbackProd?.packaging || []),
+            addons: prod.addons && prod.addons.length > 0 ? prod.addons : (fallbackProd?.addons || []),
+          };
+
+          if (existingIndex >= 0) {
+            const ex = dedupedProducts[existingIndex];
+            dedupedProducts[existingIndex] = {
+              ...ex,
+              ...fullProd,
+              batters: ex.batters && ex.batters.length > 0 ? ex.batters : fullProd.batters,
+              variations: ex.variations && ex.variations.length > 0 ? ex.variations : fullProd.variations,
+              flavors: ex.flavors && ex.flavors.length > 0 ? ex.flavors : fullProd.flavors,
+              packaging: ex.packaging && ex.packaging.length > 0 ? ex.packaging : fullProd.packaging,
+              addons: ex.addons && ex.addons.length > 0 ? ex.addons : fullProd.addons,
+            };
+          } else {
+            dedupedProducts.push(fullProd);
+          }
+        }
+
+        // Ensure all fallback products categories are represented
+        for (const fp of fallback.products) {
+          const cat = fp.category?.trim().toLowerCase();
+          const exists = dedupedProducts.some(
+            (p) => p.id === fp.id || (cat && p.category?.toLowerCase() === cat)
+          );
+          if (!exists) {
+            dedupedProducts.push(fp);
+          }
+        }
+
+        // Align product names with specialties for seamless 1:1 synchronization
+        for (const spec of dedupedSpecialties) {
+          const prodIndex = dedupedProducts.findIndex(
+            (p) => p.id === spec.id || p.category === spec.category || p.slug === spec.slug
+          );
+          if (prodIndex >= 0) {
+            dedupedProducts[prodIndex].category = spec.category;
+            if (!dedupedProducts[prodIndex].name) {
+              dedupedProducts[prodIndex].name = spec.title;
+            }
+          }
+        }
+
+        const resolved: AppDatabase = {
           ...fallback,
           ...parsed,
-          products: mergedProducts,
+          specialties: dedupedSpecialties,
+          products: dedupedProducts,
           settings: { ...fallback.settings, ...(parsed.settings || {}) },
           home: { ...fallback.home, ...(parsed.home || {}) },
           chef: { ...fallback.chef, ...(parsed.chef || {}) },
           policies: { ...fallback.policies, ...(parsed.policies || {}) },
         };
+
+        // Cache clean, deduplicated version
+        try {
+          localStorage.setItem(key, JSON.stringify(resolved));
+        } catch {
+          // ignore
+        }
+
+        return resolved;
       }
     } catch (e) {
       console.warn(`Failed to parse ${key} from storage:`, e);

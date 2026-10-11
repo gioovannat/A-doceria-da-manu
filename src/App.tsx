@@ -47,26 +47,31 @@ export default function App() {
   };
 
   const handleSelectItemForOrder = (itemName: string, itemCategory?: string) => {
-    const categoryAliases: Record<string, string[]> = {
-      bolos: ['bolos', 'bolo'],
-      bento: ['bento'],
-      kits: ['kits', 'kit'],
-      doces: ['doces', 'brigadeiros'],
-      salgados: ['salgados'],
-      escola: ['escola'],
-    };
     const normalizedItemName = itemName.trim().toLowerCase();
-    const selectedProduct = publishedData.products.find((product) => {
-      if (product.name.trim().toLowerCase() === normalizedItemName || product.slug === normalizedItemName) {
-        return true;
-      }
 
-      return itemCategory
-        ? (categoryAliases[itemCategory] || [itemCategory]).some((alias) =>
-            product.category.toLowerCase().includes(alias),
-          )
-        : false;
-    });
+    // 1. Busca por nome exato, slug ou id
+    let selectedProduct = publishedData.products.find(
+      (product) =>
+        product.name.trim().toLowerCase() === normalizedItemName ||
+        product.slug === normalizedItemName ||
+        product.id === normalizedItemName
+    );
+
+    // 2. Se não encontrou, busca pela categoria correspondente
+    if (!selectedProduct && itemCategory) {
+      selectedProduct = publishedData.products.find(
+        (product) => product.category.toLowerCase() === itemCategory.toLowerCase()
+      );
+    }
+
+    // 3. Busca por correspondência parcial de texto
+    if (!selectedProduct) {
+      selectedProduct = publishedData.products.find(
+        (product) =>
+          product.name.toLowerCase().includes(normalizedItemName) ||
+          normalizedItemName.includes(product.name.toLowerCase())
+      );
+    }
 
     setSelectedItemForOrder(selectedProduct?.name || itemName);
     setIsOrderModalOpen(true);

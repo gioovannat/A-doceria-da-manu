@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, MessageCircle, Sparkles, Check, Calendar, Cake, Heart, Box, Gift, Layers, AlertCircle, Info } from 'lucide-react';
+import { X, MessageCircle, Sparkles, Check, Calendar, Cake, Heart, Box, Gift, Layers, AlertCircle, Info, Camera, Image as ImageIcon, Trash2, Upload } from 'lucide-react';
 import { store } from '../lib/store';
 import { AppDatabase, Product, Flavor, PackagingOption, Addon, ProductVariation, CakeBatter } from '../types';
 
@@ -21,21 +21,49 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const currentData = data || store.getPublished();
   const { products, flavors, packaging, addons, settings } = currentData;
 
-  const [category, setCategory] = useState<string>(initialItem || products[0]?.name || 'Bolo Vintage Heart Cake');
+  // Lista de produtos únicos sem duplicidade de ID ou nome
+  const uniqueProducts: Product[] = React.useMemo(() => {
+    const seenIds = new Set<string>();
+    const seenNames = new Set<string>();
+    const result: Product[] = [];
+
+    for (const p of products) {
+      if (!p.active) continue;
+      const idKey = p.id?.trim().toLowerCase();
+      const nameKey = p.name?.trim().toLowerCase();
+
+      if (idKey && seenIds.has(idKey)) continue;
+      if (nameKey && seenNames.has(nameKey)) continue;
+
+      if (idKey) seenIds.add(idKey);
+      if (nameKey) seenNames.add(nameKey);
+      result.push(p);
+    }
+    return result;
+  }, [products]);
+
+  const [category, setCategory] = useState<string>(() => {
+    if (initialItem) return initialItem;
+    return uniqueProducts[0]?.name || products[0]?.name || 'Bolo Vintage Heart Cake';
+  });
   const [batter, setBatter] = useState<string>('');
   const [flavor1, setFlavor1] = useState<string>('');
   const [flavor2, setFlavor2] = useState<string>('');
+  const [selectedSalgadoFlavors, setSelectedSalgadoFlavors] = useState<string[]>([]);
   const [selectedPack, setSelectedPack] = useState<string>('');
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [servings, setServings] = useState<string>('');
   const [date, setDate] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
-  const [deliveryType, setDeliveryType] = useState<'entrega' | 'retirada'>('retirada');
-  const [location, setLocation] = useState<string>('Paço do Lumiar');
+  const [inspirationPhoto, setInspirationPhoto] = useState<string | null>(null);
+  const [inspirationPhotoName, setInspirationPhotoName] = useState<string>('');
+  const [deliveryType] = useState<'retirada'>('retirada');
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Find the selected product object
-  const selectedProductObj: Product | undefined = products.find((p) => p.name === category);
+  const selectedProductObj: Product | undefined = products.find((p) => p.name === category)
+    || uniqueProducts.find((p) => p.name === category || p.category === category)
+    || uniqueProducts[0];
 
   // Dynamic options strictly derived from the selected product
   const availableBatters: CakeBatter[] = (selectedProductObj?.batters && selectedProductObj.batters.length > 0)
@@ -58,36 +86,79 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     ? selectedProductObj.variations.filter(v => v.active)
     : [];
 
-  // As regras vêm do produto e podem ser configuradas pelo painel de gestão.
-  // O cliente só precisa cumprir o que estiver definido para o item selecionado.
-  const requiresBatter = selectedProductObj?.requires_batter ?? false;
-  const requiredFlavors = selectedProductObj?.min_flavors ?? 0;
-  const requires2Flavors = requiredFlavors >= 2;
-  const minAddons = selectedProductObj?.min_addons ?? 0;
-  const hasConfiguredRules = requiresBatter || requiredFlavors > 0 || minAddons > 0;
-  const isSalgados = selectedProductObj?.category === 'salgados';
-  const isCake = !isSalgados && (selectedProductObj?.category === 'bolos' || selectedProductObj?.category === 'bento' || requiresBatter);
+  // Rules determination
+  const isBento = selectedProductObj?.category === 'bento';
+  const isDecoratedCake = selectedProductObj?.category === 'bolos';
+  const isCake = isDecoratedCake || isBento || Boolean(selectedProductObj?.requires_batter);
+  
+  // Detecção de Salgados Artesanais
+  const isSalgados = selectedProductObj?.category === 'salgados' || 
+    selectedProductObj?.id === 'salgados-artesanais' ||
+    selectedProductObj?.slug === 'salgados-artesanais' ||
+    selectedProductObj?.name.toLowerCase().includes('salgado') ||
+    category.toLowerCase().includes('salgado');
+
+  // Permitir anexar foto de inspiração somente para: Bolos decorados, Kit Festa ou Festa na Escola
+  const allowsInspirationPhoto = Boolean(
+    isDecoratedCake ||
+    isBento ||
+    selectedProductObj?.category === 'bolos' ||
+    selectedProductObj?.category === 'bento' ||
+    selectedProductObj?.category === 'kits' ||
+    selectedProductObj?.category === 'escola' ||
+    /bolo|bento|kit|escola/i.test(selectedProductObj?.category || '') ||
+    /bolo|bento|kit|festa na escola/i.test(selectedProductObj?.name || '') ||
+    /bolo|bento|kit|festa na escola/i.test(category)
+  );
+
+  // Requisitos específicos por tipo de produto:
+  // - Bentô Cake: 1 massa obrigatoriamente, 1 recheio obrigatoriamente, min 1 adicional obrigatoriamente
+  // - Bolo Decorado: 1 massa obrigatoriamente, 2 recheios obrigatoriamente, min 1 adicional obrigatoriamente
+  // - Salgados Artesanais: recheio/sabor em caixa de seleção obrigatório, sem limite de quantidade
+  const requiresBatter = !isSalgados && (selectedProductObj?.requires_batter ?? (isCake && availableBatters.length > 0));
+  const requires2Flavors = !isSalgados && (selectedProductObj?.min_flavors !== undefined
+    ? selectedProductObj.min_flavors === 2
+    : (isDecoratedCake && !isBento && availableFlavors.length >= 2));
+  const minAddons = selectedProductObj?.min_addons ?? (isCake ? 1 : 0);
 
   // Synchronize options when category changes or modal opens
   useEffect(() => {
     if (!isOpen) return;
 
-    const requestedProduct = products.find((product) => product.name === initialItem);
-    if (requestedProduct && requestedProduct.name !== category) {
-      setCategory(requestedProduct.name);
-      setFlavor1('');
-      setFlavor2('');
-      setBatter('');
-      setSelectedPack('');
-      setSelectedAddons([]);
-      setServings('');
-      return;
+    if (initialItem) {
+      const normalized = initialItem.trim().toLowerCase();
+      const match = uniqueProducts.find(
+        (p) =>
+          p.name.trim().toLowerCase() === normalized ||
+          p.slug.toLowerCase() === normalized ||
+          p.id.toLowerCase() === normalized ||
+          p.category.toLowerCase() === normalized ||
+          p.name.toLowerCase().includes(normalized) ||
+          normalized.includes(p.name.toLowerCase())
+      ) || products.find(
+        (p) =>
+          p.name.trim().toLowerCase() === normalized ||
+          p.slug.toLowerCase() === normalized ||
+          p.id.toLowerCase() === normalized ||
+          p.category.toLowerCase() === normalized ||
+          p.name.toLowerCase().includes(normalized) ||
+          normalized.includes(p.name.toLowerCase())
+      );
+      if (match) {
+        setCategory(match.name);
+      } else {
+        setCategory(initialItem);
+      }
     }
+  }, [isOpen, initialItem, uniqueProducts, products]);
+
+  useEffect(() => {
+    if (!isOpen) return;
 
     setValidationError(null);
 
-    // 1. Batter sync
-    if (availableBatters.length > 0) {
+    // 1. Batter sync (somente se aplicável)
+    if (availableBatters.length > 0 && !isSalgados) {
       const batterExists = availableBatters.some(b => b.name === batter);
       if (!batterExists) {
         setBatter(availableBatters[0]?.name || '');
@@ -97,7 +168,17 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     }
 
     // 2. Flavors sync
-    if (availableFlavors.length > 0) {
+    if (isSalgados) {
+      // Salgados artesanais: caixa de seleção múltipla (sem limite, mínimo 1 obrigatório)
+      if (availableFlavors.length > 0) {
+        setSelectedSalgadoFlavors((prev) => {
+          const valid = prev.filter(name => availableFlavors.some(f => f.name === name));
+          if (valid.length > 0) return valid;
+          // Pré-seleciona os 2 primeiros sabores como sugestão inicial prática
+          return availableFlavors.slice(0, 2).map(f => f.name);
+        });
+      }
+    } else if (availableFlavors.length > 0) {
       const flav1Exists = availableFlavors.some(f => f.name === flavor1);
       if (!flav1Exists) {
         setFlavor1(initialFlavor || availableFlavors[0]?.name || '');
@@ -130,7 +211,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       if (!servings) setServings('15 a 20 fatias');
     }
 
-  }, [category, isOpen, requires2Flavors, minAddons]);
+    // 5. Addons default requirement for cakes (ensure at least 1 is pre-selected if required)
+    if (minAddons > 0 && selectedAddons.length === 0 && availableAddons.length > 0) {
+      setSelectedAddons([availableAddons[0].name]);
+    }
+  }, [category, isOpen, requires2Flavors, minAddons, isSalgados]);
 
   if (!isOpen) return null;
 
@@ -147,8 +232,17 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     : (selectedProductObj?.starting_price || 130);
 
   const batterExtra = selectedBatterObj?.additional_price || 0;
-  const flavor1Extra = selectedFlavor1Obj?.additional_price || 0;
-  const flavor2Extra = requires2Flavors ? (selectedFlavor2Obj?.additional_price || 0) : 0;
+  const flavor1Extra = !isSalgados ? (selectedFlavor1Obj?.additional_price || 0) : 0;
+  const flavor2Extra = (!isSalgados && requires2Flavors) ? (selectedFlavor2Obj?.additional_price || 0) : 0;
+  
+  // Salgados extras (caso algum sabor especial tenha preço adicional)
+  const salgadosFlavorsExtra = isSalgados
+    ? selectedSalgadoFlavors.reduce((acc, fName) => {
+        const item = availableFlavors.find((f) => f.name === fName);
+        return acc + (item?.additional_price || 0);
+      }, 0)
+    : 0;
+
   const packagingExtra = selectedPackagingObj?.additional_price || 0;
   const addonsExtra = selectedAddons.reduce((acc, addName) => {
     const item = availableAddons.find((a) => a.name === addName);
@@ -156,28 +250,50 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   }, 0);
 
   // Contabilização de todo o conjunto no pedido final
-  const estimatedTotal = basePrice + batterExtra + flavor1Extra + flavor2Extra + packagingExtra + addonsExtra;
+  const estimatedTotal = basePrice + batterExtra + flavor1Extra + flavor2Extra + salgadosFlavorsExtra + packagingExtra + addonsExtra;
+
+  // Upload de foto de inspiração
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 8 * 1024 * 1024) {
+        setValidationError('A foto de inspiração deve ter no máximo 8MB.');
+        return;
+      }
+      setInspirationPhotoName(file.name);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setInspirationPhoto(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    setInspirationPhoto(null);
+    setInspirationPhotoName('');
+  };
 
   const handleSendWhatsApp = (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
 
     // Validações obrigatórias
-    if (requiresBatter && (!batter || batter.trim() === '')) {
-      setValidationError('Por favor, selecione obrigatoriamente o tipo de massa do seu bolo.');
-      return;
-    }
+    if (isSalgados) {
+      if (selectedSalgadoFlavors.length === 0) {
+        setValidationError('Por favor, selecione obrigatoriamente pelo menos 1 opção de sabor para os seus salgados artesanais na caixa de seleção (sem limite máximo).');
+        return;
+      }
+    } else {
+      if (requiresBatter && (!batter || batter.trim() === '')) {
+        setValidationError('Por favor, selecione obrigatoriamente o tipo de massa do seu bolo.');
+        return;
+      }
 
-    if (requiredFlavors > 0 && (!flavor1 || flavor1.trim() === '' || (requires2Flavors && (!flavor2 || flavor2.trim() === '')))) {
-      setValidationError(requires2Flavors
-        ? 'Por favor, selecione obrigatoriamente os 2 tipos de recheio definidos para este produto.'
-        : 'Por favor, selecione obrigatoriamente 1 tipo de recheio definido para este produto.');
-      return;
-    }
-
-    if (isSalgados && (!servings || servings.trim() === '')) {
-      setValidationError('Por favor, escolha obrigatoriamente meio cento ou cento de salgados.');
-      return;
+      if (requires2Flavors && (!flavor1 || !flavor2 || flavor1.trim() === '' || flavor2.trim() === '')) {
+        setValidationError('Por favor, selecione obrigatoriamente os 2 tipos de recheio para o seu bolo decorado.');
+        return;
+      }
     }
 
     if (minAddons > 0 && selectedAddons.length < minAddons) {
@@ -189,17 +305,20 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       `*Olá, ${settings.short_name}! Gostaria de solicitar um pedido:*\n\n` +
       `🎂 *Item desejado:* ${category}\n` +
       `👥 *Tamanho / Porção:* ${servings || 'Padrão'} (R$ ${basePrice.toFixed(2)})\n` +
-      (batter ? `🍰 *Tipo de Massa (Obrigatório):* ${batter} ${batterExtra > 0 ? `(+R$ ${batterExtra.toFixed(2)})` : '(Inclusa)'}\n` : '') +
-      (requires2Flavors 
-        ? `🍓 *1º Recheio (Obrigatório):* ${flavor1} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2)})` : '(Incluso)'}\n` +
-          `🍫 *2º Recheio (Obrigatório):* ${flavor2} ${flavor2Extra > 0 ? `(+R$ ${flavor2Extra.toFixed(2)})` : '(Incluso)'}\n`
-        : `🍓 *Recheio / Sabor:* ${flavor1 || 'Padrão'} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2)})` : ''}\n`
+      (batter && !isSalgados ? `🍰 *Tipo de Massa (Obrigatório):* ${batter} ${batterExtra > 0 ? `(+R$ ${batterExtra.toFixed(2)})` : '(Inclusa)'}\n` : '') +
+      (isSalgados
+        ? `🥟 *Sabores dos Salgados (Sem Limite):* ${selectedSalgadoFlavors.join(', ')} ${salgadosFlavorsExtra > 0 ? `(+R$ ${salgadosFlavorsExtra.toFixed(2)})` : '(Inclusos)'}\n`
+        : requires2Flavors 
+          ? `🍓 *1º Recheio (Obrigatório):* ${flavor1} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2)})` : '(Incluso)'}\n` +
+            `🍫 *2º Recheio (Obrigatório):* ${flavor2} ${flavor2Extra > 0 ? `(+R$ ${flavor2Extra.toFixed(2)})` : '(Incluso)'}\n`
+          : (flavor1 ? `🍓 *Recheio / Sabor:* ${flavor1 || 'Padrão'} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2)})` : ''}\n` : '')
       ) +
       `📦 *Embalagem:* ${selectedPack || 'Padrão'} ${packagingExtra > 0 ? `(+R$ ${packagingExtra.toFixed(2)})` : '(Inclusa)'}\n` +
-      `✨ *Adicionais (Obrigatório mín. 1):* ${selectedAddons.join(', ')} (+R$ ${addonsExtra.toFixed(2)})\n` +
+      (selectedAddons.length > 0 ? `✨ *Adicionais:* ${selectedAddons.join(', ')} (+R$ ${addonsExtra.toFixed(2)})\n` : '') +
       `📅 *Data do evento:* ${date || 'A combinar'}\n` +
-      `🚚 *Modalidade:* ${deliveryType === 'entrega' ? `Entrega em ${location}` : 'Retirada no Ateliê'}\n` +
-      (notes ? `📝 *Observações/Tema:* ${notes}\n` : '') +
+      `🚚 *Forma de Recebimento:* Retirada no Ateliê (Cliente pode retirar pessoalmente ou solicitar/pagar Uber Flash / 99 Entregas)\n` +
+      (notes ? `📝 *Detalhes/Cores/Frase:* ${notes}\n` : '') +
+      (allowsInspirationPhoto && inspirationPhoto ? `📸 *Foto de Inspiração Anexada:* Sim ("${inspirationPhotoName || 'Foto de referência'}" - enviarei a imagem aqui no WhatsApp)\n` : '') +
       `\n═════════════════════════\n` +
       `💰 *VALOR TOTAL CONTABILIZADO:* R$ ${estimatedTotal.toFixed(2).replace('.', ',')}\n` +
       `═════════════════════════\n\n` +
@@ -208,15 +327,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     // Record order in store
     store.recordOrder({
       product_name: category,
-      batter: batter,
+      batter: !isSalgados ? batter : undefined,
       quantity: servings,
-      flavors: requires2Flavors ? [flavor1, flavor2] : [flavor1],
+      flavors: isSalgados ? selectedSalgadoFlavors : (requires2Flavors ? [flavor1, flavor2] : [flavor1]),
       packaging: selectedPack,
       addons: selectedAddons,
       date: date || 'A combinar',
-      delivery_type: deliveryType,
-      location: deliveryType === 'entrega' ? location : 'Ateliê',
+      delivery_type: 'Retirada no Ateliê',
+      location: 'Ateliê (Retirada própria ou Uber Flash / 99 Entregas)',
       notes: notes,
+      inspiration_photo: allowsInspirationPhoto && inspirationPhotoName ? inspirationPhotoName : (inspirationPhoto ? 'Foto anexada' : undefined),
       estimated_total: estimatedTotal,
       formatted_message: formattedMessage,
     });
@@ -246,7 +366,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 Monte seu Pedido
               </h3>
               <p className="text-xs text-[#7A505D]">
-                Personalize a massa, os recheios e os opcionais exclusivos
+                Personalize os sabores, tamanhos e opcionais exclusivos
               </p>
             </div>
           </div>
@@ -268,7 +388,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 flex items-start gap-3 text-xs leading-relaxed animate-in fade-in duration-150">
               <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
               <div>
-                <strong className="font-bold block">Atenção aos requisitos do bolo:</strong>
+                <strong className="font-bold block">Atenção aos requisitos do pedido:</strong>
                 <span>{validationError}</span>
               </div>
             </div>
@@ -278,18 +398,26 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           <div>
             <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider flex items-center justify-between">
               <span>1. Escolha o Produto</span>
-              {isCake && (
+              {isBento ? (
                 <span className="text-[10px] text-[#D81E5B] font-semibold">
-                  Massa + Recheio + Mín. 1 Adicional
+                  1 Massa + 1 Recheio + Mín. 1 Adicional
                 </span>
-              )}
+              ) : isCake ? (
+                <span className="text-[10px] text-[#D81E5B] font-semibold">
+                  1 Massa + 2 Recheios + Mín. 1 Adicional
+                </span>
+              ) : isSalgados ? (
+                <span className="text-[10px] text-[#D81E5B] font-semibold">
+                  Caixa de Seleção de Sabores (Sem Limite)
+                </span>
+              ) : null}
             </label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
               className="w-full px-4 py-2.5 rounded-xl border border-[#FAD0DE] bg-[#FFFDFC] text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] focus:ring-1 focus:ring-[#D81E5B] cursor-pointer"
             >
-              {products.filter(p => p.active).map((p) => (
+              {uniqueProducts.map((p) => (
                 <option key={p.id} value={p.name}>
                   {p.name} ({p.starting_price_display || `a partir de R$ ${p.starting_price}`})
                 </option>
@@ -298,7 +426,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             </select>
           </div>
 
-          {/* 2. Tipo de Massa do Bolo (OBRIGATÓRIO) */}
+          {/* 2. Tipo de Massa do Bolo (OBRIGATÓRIO SOMENTE PARA BOLOS) */}
           {!isSalgados && availableBatters.length > 0 && (
             <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-2">
               <label className="block text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center justify-between">
@@ -328,99 +456,174 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             </div>
           )}
 
-          {/* 3. Recheios do Bolo (2 TIPOS OBRIGATORIAMENTE OU 1 TIPO) */}
-          {!isSalgados && availableFlavors.length > 0 && (
-            <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-3">
+          {/* 3. RECHEIO / SABORES */}
+          {/* CASO A: SALGADOS ARTESANAIS -> CAIXA DE SELEÇÃO OBRIGATÓRIA SEM LIMITE */}
+          {isSalgados ? (
+            <div className={`p-4 rounded-2xl border space-y-3 transition-colors ${
+              selectedSalgadoFlavors.length === 0
+                ? 'bg-rose-50/70 border-rose-300'
+                : 'bg-[#FFF9FB] border-[#FAD0DE]'
+            }`}>
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-[#D81E5B]" />
-                  3. {requires2Flavors ? 'Sabores & Recheios (2 Tipos Obrigatórios)' : 'Recheio / Sabor (Obrigatório)'}
+                  2. Recheio / Sabores dos Salgados
                 </label>
-                <span className="text-[10px] font-extrabold uppercase bg-[#FFF0F4] text-[#B8134B] border border-[#FAD0DE] px-2 py-0.5 rounded-full">
-                  {requires2Flavors ? '* 2 Recheios Obrigatórios' : '* Obrigatório'}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-extrabold uppercase bg-[#FFF0F4] text-[#B8134B] border border-[#FAD0DE] px-2 py-0.5 rounded-full">
+                    * Escolha Obrigatória
+                  </span>
+                  <span className="text-[10px] font-bold text-[#25D366] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                    Sem Limite de Sabores
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-[#7A505D]">
+                <span>Marque todas as opções de sabores que deseja no seu pedido (mínimo 1, sem limite máximo):</span>
+                <span className="font-semibold text-[#D81E5B] shrink-0 ml-2">
+                  {selectedSalgadoFlavors.length} selecionado{selectedSalgadoFlavors.length !== 1 ? 's' : ''}
                 </span>
               </div>
 
-              {requires2Flavors ? (
-                <>
-                  <p className="text-[11px] text-[#7A505D]">
-                    Os bolos decorados levam 2 camadas generosas de recheio. Escolha os 2 tipos abaixo (podem ser sabores diferentes ou o mesmo sabor nas duas camadas):
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <span className="text-[11px] font-bold text-[#3D1E26] mb-1 block">
-                        1º Recheio (Camada 1):
-                      </span>
-                      <select
-                        value={flavor1}
-                        required
-                        onChange={(e) => setFlavor1(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-[#FAD0DE] bg-white text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] cursor-pointer text-xs"
-                      >
-                        {availableFlavors.map((f) => (
-                          <option key={f.id} value={f.name}>
-                            {f.name} {f.additional_price > 0 ? `(+R$ ${f.additional_price.toFixed(2)})` : '(Incluso)'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <span className="text-[11px] font-bold text-[#3D1E26] mb-1 block">
-                        2º Recheio (Camada 2):
-                      </span>
-                      <select
-                        value={flavor2}
-                        required
-                        onChange={(e) => setFlavor2(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border border-[#FAD0DE] bg-white text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] cursor-pointer text-xs"
-                      >
-                        {availableFlavors.map((f) => (
-                          <option key={f.id} value={f.name}>
-                            {f.name} {f.additional_price > 0 ? `(+R$ ${f.additional_price.toFixed(2)})` : '(Incluso)'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <select
-                  value={flavor1}
-                  required
-                  onChange={(e) => setFlavor1(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-[#FAD0DE] bg-white text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] cursor-pointer"
-                >
-                  {availableFlavors.map((f) => (
-                    <option key={f.id} value={f.name}>
-                      {f.name} {f.additional_price > 0 ? `(+R$ ${f.additional_price.toFixed(2)})` : '(Incluso)'}
-                    </option>
-                  ))}
-                  <option value="Quero sugestão personalizada da Manu">Quero sugestão personalizada da Manu</option>
-                </select>
+              {selectedSalgadoFlavors.length === 0 && (
+                <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11px] flex items-center gap-1.5 font-medium">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>Por favor, selecione pelo menos 1 sabor na caixa abaixo. Você pode marcar quantos quiser!</span>
+                </div>
               )}
+
+              {/* Caixa de seleção com múltiplas opções sem limite */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {availableFlavors.map((flavor) => {
+                  const isChecked = selectedSalgadoFlavors.includes(flavor.name);
+                  return (
+                    <label
+                      key={flavor.id}
+                      className={`p-3 rounded-xl border text-xs font-medium flex items-start gap-3 cursor-pointer transition-all duration-150 select-none ${
+                        isChecked
+                          ? 'bg-[#FFF0F4] border-[#D81E5B] text-[#3D1E26] shadow-2xs'
+                          : 'bg-white border-[#FAD0DE] text-[#6B4651] hover:border-[#D81E5B]/60 hover:bg-[#FFFDFC]'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {
+                          setSelectedSalgadoFlavors((prev) =>
+                            isChecked
+                              ? prev.filter((name) => name !== flavor.name)
+                              : [...prev, flavor.name]
+                          );
+                        }}
+                        className="mt-0.5 w-4 h-4 rounded text-[#D81E5B] accent-[#D81E5B] border-[#FAD0DE] focus:ring-0 cursor-pointer shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className={`font-semibold ${isChecked ? 'text-[#D81E5B]' : 'text-[#3D1E26]'}`}>
+                            {flavor.name}
+                          </span>
+                          {flavor.additional_price > 0 && (
+                            <span className="text-[10px] font-bold text-[#D81E5B] bg-[#FFF0F4] px-1.5 py-0.5 rounded-md shrink-0">
+                              +R$ {flavor.additional_price.toFixed(2)}
+                            </span>
+                          )}
+                        </div>
+                        {flavor.description && (
+                          <p className="text-[10px] text-[#7A505D] mt-0.5 leading-tight line-clamp-2">
+                            {flavor.description}
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
+          ) : (
+            /* CASO B: BOLOS, KITS E OUTROS PRODUTOS */
+            availableFlavors.length > 0 && (
+              <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-[#D81E5B]" />
+                    3. {requires2Flavors ? 'Sabores & Recheios (2 Tipos Obrigatórios)' : 'Recheio / Sabor'}
+                  </label>
+                  <span className="text-[10px] font-extrabold uppercase bg-[#FFF0F4] text-[#B8134B] border border-[#FAD0DE] px-2 py-0.5 rounded-full">
+                    {requires2Flavors ? '* 2 Recheios Obrigatórios' : '* Obrigatório'}
+                  </span>
+                </div>
+
+                {requires2Flavors ? (
+                  <>
+                    <p className="text-[11px] text-[#7A505D]">
+                      Os bolos decorados levam 2 camadas generosas de recheio. Escolha os 2 tipos abaixo:
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <span className="text-[11px] font-bold text-[#3D1E26] mb-1 block">
+                          1º Recheio (Camada 1):
+                        </span>
+                        <select
+                          value={flavor1}
+                          required
+                          onChange={(e) => setFlavor1(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-[#FAD0DE] bg-white text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] cursor-pointer text-xs"
+                        >
+                          {availableFlavors.map((f) => (
+                            <option key={f.id} value={f.name}>
+                              {f.name} {f.additional_price > 0 ? `(+R$ ${f.additional_price.toFixed(2)})` : '(Incluso)'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <span className="text-[11px] font-bold text-[#3D1E26] mb-1 block">
+                          2º Recheio (Camada 2):
+                        </span>
+                        <select
+                          value={flavor2}
+                          required
+                          onChange={(e) => setFlavor2(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-[#FAD0DE] bg-white text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] cursor-pointer text-xs"
+                        >
+                          {availableFlavors.map((f) => (
+                            <option key={f.id} value={f.name}>
+                              {f.name} {f.additional_price > 0 ? `(+R$ ${f.additional_price.toFixed(2)})` : '(Incluso)'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <select
+                    value={flavor1}
+                    required
+                    onChange={(e) => setFlavor1(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-[#FAD0DE] bg-white text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] cursor-pointer"
+                  >
+                    {availableFlavors.map((f) => (
+                      <option key={f.id} value={f.name}>
+                        {f.name} {f.additional_price > 0 ? `(+R$ ${f.additional_price.toFixed(2)})` : '(Incluso)'}
+                      </option>
+                    ))}
+                    <option value="Quero sugestão personalizada da Manu">Quero sugestão personalizada da Manu</option>
+                  </select>
+                )}
+              </div>
+            )
           )}
 
-          {/* 4. Quantidade / Tamanho / Variação */}
+          {/* 4. Tamanho / Variação ou Fatias */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider">
-                {isSalgados ? '4. Quantidade de Salgados (Obrigatória)' : '4. Tamanho / Opção'}
+                {isSalgados ? '3. Quantidade / Cento' : '4. Tamanho / Opção'}
               </label>
-              {isSalgados ? (
-                <select
-                  value={servings}
-                  required
-                  onChange={(e) => setServings(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-[#FAD0DE] bg-[#FFFDFC] text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] cursor-pointer"
-                >
-                  <option value="">Selecione a quantidade</option>
-                  <option value="Meio cento de salgados">Meio cento de salgados</option>
-                  <option value="Cento de salgados">Cento de salgados</option>
-                </select>
-              ) : availableVariations.length > 0 ? (
+              {availableVariations.length > 0 ? (
                 <select
                   value={servings}
                   onChange={(e) => setServings(e.target.value)}
@@ -451,7 +654,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
             <div>
               <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider">
-                5. Data desejada
+                {isSalgados ? '4. Data desejada' : '5. Data desejada'}
               </label>
               <input
                 type="date"
@@ -462,11 +665,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             </div>
           </div>
 
-          {/* 5. Packaging (Particular do produto selecionado) */}
-          {!isSalgados && availablePackaging.length > 0 && (
+          {/* 5. Embalagem */}
+          {availablePackaging.length > 0 && (
             <div>
               <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider flex items-center justify-between">
-                <span>6. Opção de Embalagem</span>
+                <span>{isSalgados ? '5. Embalagem' : '6. Opção de Embalagem'}</span>
                 <span className="text-[10px] text-[#D81E5B] font-normal">Para {category}</span>
               </label>
               <select
@@ -483,8 +686,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             </div>
           )}
 
-          {/* 6. Adicionais & Opcionais (NO MÍNIMO 1 OBRIGATÓRIO PARA BOLO) */}
-          {!isSalgados && availableAddons.length > 0 && (
+          {/* 6. Adicionais & Opcionais */}
+          {availableAddons.length > 0 && (
             <div className={`p-4 rounded-2xl border space-y-2.5 transition-colors ${
               minAddons > 0 && selectedAddons.length < minAddons 
                 ? 'bg-rose-50/70 border-rose-300' 
@@ -493,7 +696,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center gap-1.5">
                   <Gift className="w-3.5 h-3.5 text-[#D81E5B]" />
-                  7. Adicionais & Opcionais
+                  {isSalgados ? '6. Molhos & Adicionais' : '7. Adicionais & Opcionais'}
                 </label>
                 <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${
                   minAddons > 0 && selectedAddons.length < minAddons
@@ -535,16 +738,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           : 'bg-white border-[#FAD0DE] text-[#6B4651] hover:border-[#D81E5B]'
                       }`}
                     >
-  <div className="flex items-center gap-2 min-w-0 text-left">
-  <Check className={`w-3.5 h-3.5 shrink-0 ${isChecked ? 'opacity-100 text-[#D81E5B]' : 'opacity-0'}`} />
-  {add.image ? (
-  <img src={add.image} alt={`Imagem de ${add.name}`} className="w-12 h-12 rounded-lg object-cover border border-[#FAD0DE] shrink-0" />
-  ) : (
-  <div className="w-12 h-12 rounded-lg bg-[#FFF0F4] border border-dashed border-[#F8B4C9] flex items-center justify-center text-[9px] text-[#B8134B] text-center shrink-0">Sem foto</div>
-  )}
-  <span className="truncate">{add.name}</span>
-  </div>
-  <span className="font-bold whitespace-nowrap">+R${add.price}</span>
+                      <div className="flex items-center gap-1.5">
+                        <Check className={`w-3.5 h-3.5 ${isChecked ? 'opacity-100 text-[#D81E5B]' : 'opacity-0'}`} />
+                        <span>{add.name}</span>
+                      </div>
+                      <span className="font-bold">+R${add.price}</span>
                     </button>
                   );
                 })}
@@ -552,64 +750,143 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             </div>
           )}
 
-          {/* 7. Forma de Recebimento */}
-          <div>
-            <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider">
-              8. Forma de recebimento
+          {/* 7. FORMA DE RECEBIMENTO: CONFIGURADA SOMENTE PARA RETIRADA NO ATELIÊ */}
+          <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-2.5">
+            <label className="block text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Box className="w-3.5 h-3.5 text-[#D81E5B]" />
+                {isSalgados ? '7. Forma de Recebimento' : '8. Forma de Recebimento'}
+              </span>
+              <span className="text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                <Check className="w-3 h-3 text-emerald-600" /> Somente Retirada no Ateliê
+              </span>
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setDeliveryType('retirada')}
-                className={`py-2.5 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors ${
-                  deliveryType === 'retirada'
-                    ? 'bg-[#FFF0F4] border-[#D81E5B] text-[#D81E5B]'
-                    : 'border-[#FAD0DE] text-[#6B4651] bg-white'
-                }`}
-              >
-                <Check className={`w-3.5 h-3.5 ${deliveryType === 'retirada' ? 'opacity-100' : 'opacity-0'}`} />
-                <span>Retirada no Ateliê</span>
-              </button>
 
-              <button
-                type="button"
-                onClick={() => setDeliveryType('entrega')}
-                className={`py-2.5 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-colors ${
-                  deliveryType === 'entrega'
-                    ? 'bg-[#FFF0F4] border-[#D81E5B] text-[#D81E5B]'
-                    : 'border-[#FAD0DE] text-[#6B4651] bg-white'
-                }`}
-              >
-                <Check className={`w-3.5 h-3.5 ${deliveryType === 'entrega' ? 'opacity-100' : 'opacity-0'}`} />
-                <span>Entrega em Domicílio</span>
-              </button>
+            <div className="p-3.5 rounded-xl bg-white border border-[#FAD0DE] flex items-start gap-3 shadow-2xs">
+              <div className="w-8 h-8 rounded-lg bg-[#FFF0F4] border border-[#F8B4C9] flex items-center justify-center text-[#D81E5B] shrink-0 mt-0.5">
+                <Check className="w-4 h-4" />
+              </div>
+              <div className="space-y-1 text-xs">
+                <div className="font-bold text-[#3D1E26] flex items-center gap-2">
+                  <span>Retirada no Ateliê da Manu</span>
+                  <span className="text-[10px] font-semibold text-[#D81E5B] bg-[#FFF0F4] px-1.5 py-0.5 rounded-md">
+                    Paço do Lumiar
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#5E3B46] leading-relaxed">
+                  <strong>Observação importante:</strong> O cliente pode vir buscar pessoalmente no Ateliê ou solicitar e pagar o envio por conta própria via aplicativo (<span className="text-[#D81E5B] font-semibold">Uber Flash / 99 Entregas</span>).
+                </p>
+                <p className="text-[10px] text-[#8C5D6C] pt-0.5">
+                  • Endereço detalhado e instruções de retirada serão enviados na confirmação do pedido pelo WhatsApp.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* 8. DETALHES, CORES OU FRASE PARA O PEDIDO (COM OPÇÃO DE FOTO DE INSPIRAÇÃO SOMENTE PARA BOLOS, KITS E FESTA NA ESCOLA) */}
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider flex items-center justify-between">
+                <span>{isSalgados ? '8. Detalhes ou observações para o pedido' : '9. Detalhes, cores ou frase para o pedido'}</span>
+                {allowsInspirationPhoto && (
+                  <span className="text-[10px] text-[#D81E5B] font-medium">
+                    Bolos Decorados, Kit Festa & Festa na Escola
+                  </span>
+                )}
+              </label>
+              <textarea
+                rows={2}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder={
+                  isSalgados
+                    ? "Ex: Ponto de fritura, preferência de horário, etc..."
+                    : "Ex: Escrita 'Feliz Aniversário Luiza', paleta de cores rosa e dourado, referência que vi no Instagram..."
+                }
+                className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-[#FAD0DE] bg-[#FFFDFC] text-[#3D1E26] placeholder-[#9E7381] focus:outline-hidden focus:border-[#D81E5B]"
+              />
             </div>
 
-            {deliveryType === 'entrega' && (
-              <div className="mt-2.5">
-                <input
-                  type="text"
-                  placeholder="Bairro / Cidade (ex: Maiobão, Paço do Lumiar, Calhau...)"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-[#FAD0DE] bg-[#FFFDFC] text-[#3D1E26] placeholder-[#9E7381] focus:outline-hidden focus:border-[#D81E5B]"
+            {/* OPÇÃO DE ANEXAR FOTO DE INSPIRAÇÃO: SOMENTE PARA BOLOS DECORADOS, KIT FESTA OU FESTA NA ESCOLA */}
+            {allowsInspirationPhoto && (
+              <div className="p-3.5 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#3D1E26] flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5 text-[#D81E5B]" />
+                    Anexar Foto de Inspiração (Opcional)
+                  </span>
+                  <span className="text-[10px] font-semibold text-[#8C5D6C] bg-white border border-[#FAD0DE] px-2 py-0.5 rounded-full">
+                    Referência / Modelo
+                  </span>
+                </div>
+                
+                <p className="text-[11px] text-[#7A505D]">
+                  Tem uma foto de bolo, paleta de cores ou decoração de referência? Anexe abaixo para a Manu analisar o seu modelo:
+                </p>
+
+                {inspirationPhoto ? (
+                  <div className="p-3 rounded-xl bg-white border border-[#FAD0DE] flex items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-150">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <img 
+                        src={inspirationPhoto} 
+                        alt="Foto de inspiração" 
+                        className="w-12 h-12 rounded-xl object-cover border border-[#FAD0DE] shrink-0" 
+                      />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-[#3D1E26] truncate">
+                          {inspirationPhotoName || 'Foto de inspiração anexada'}
+                        </p>
+                        <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
+                          <Check className="w-3 h-3" /> Imagem anexada com sucesso
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <label 
+                        htmlFor="photo-upload-input"
+                        className="px-2.5 py-1.5 rounded-lg bg-[#FFF0F4] hover:bg-[#FAD0DE] text-[#D81E5B] text-[11px] font-semibold cursor-pointer transition-colors"
+                      >
+                        Trocar
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleRemovePhoto}
+                        className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
+                        title="Remover foto"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label 
+                    htmlFor="photo-upload-input"
+                    className="flex flex-col sm:flex-row items-center justify-center gap-2.5 p-4 rounded-xl border border-dashed border-[#F8B4C9] bg-white hover:bg-[#FFFDFC] text-center cursor-pointer transition-colors hover:border-[#D81E5B] group"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-[#FFF0F4] text-[#D81E5B] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <Upload className="w-4 h-4" />
+                    </div>
+                    <div className="text-left">
+                      <span className="text-xs font-semibold text-[#D81E5B] block">
+                        Clique aqui para selecionar uma foto de referência
+                      </span>
+                      <span className="text-[10px] text-[#9E7381]">
+                        Formatos aceitos: JPG, PNG ou WEBP (até 8MB)
+                      </span>
+                    </div>
+                  </label>
+                )}
+
+                <input 
+                  id="photo-upload-input"
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handlePhotoUpload} 
+                  className="hidden" 
                 />
               </div>
             )}
-          </div>
-
-          {/* 8. Theme / Notes */}
-          <div>
-            <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider">
-              9. Detalhes, cores ou frase para o pedido
-            </label>
-            <textarea
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ex: Escrita 'Feliz Aniversário Luiza', paleta de cores rosa e dourado, referência que vi no Instagram..."
-              className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-[#FAD0DE] bg-[#FFFDFC] text-[#3D1E26] placeholder-[#9E7381] focus:outline-hidden focus:border-[#D81E5B]"
-            />
           </div>
 
           {/* ============================================================= */}
@@ -631,7 +908,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 <span className="font-semibold text-[#3D1E26]">R$ {basePrice.toFixed(2)}</span>
               </div>
 
-              {batter && (
+              {!isSalgados && batter && (
                 <div className="flex justify-between">
                   <span>• Massa ({batter}):</span>
                   <span className="font-semibold text-[#3D1E26]">
@@ -640,7 +917,14 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 </div>
               )}
 
-              {requires2Flavors ? (
+              {isSalgados ? (
+                <div className="flex justify-between">
+                  <span>• Sabores Salgados ({selectedSalgadoFlavors.length} selecionado{selectedSalgadoFlavors.length !== 1 ? 's' : ''}):</span>
+                  <span className="font-semibold text-[#3D1E26]">
+                    {salgadosFlavorsExtra > 0 ? `+ R$ ${salgadosFlavorsExtra.toFixed(2)}` : 'Inclusos'}
+                  </span>
+                </div>
+              ) : requires2Flavors ? (
                 <>
                   <div className="flex justify-between">
                     <span>• 1º Recheio ({flavor1 || 'Não selecionado'}):</span>
@@ -681,6 +965,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   {addonsExtra > 0 ? `+ R$ ${addonsExtra.toFixed(2)}` : 'R$ 0,00'}
                 </span>
               </div>
+
+              <div className="flex justify-between text-[11px] pt-1 text-[#8C5D6C]">
+                <span>• Modalidade de Entrega:</span>
+                <span className="font-medium text-[#3D1E26]">Retirada no Ateliê (ou Uber/99)</span>
+              </div>
             </div>
 
             <div className="pt-2 border-t border-[#FAD0DE] flex items-center justify-between">
@@ -701,7 +990,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               <span>Enviar Pedido para o WhatsApp</span>
             </button>
             <p className="text-[11px] text-[#8C5D6C] text-center mt-2">
-              Mensagem formatada com massa, 2 recheios e adicionais pronta para envio!
+              {allowsInspirationPhoto && inspirationPhoto
+                ? 'Mensagem formatada e pronta! Você poderá enviar a foto de inspiração anexada no WhatsApp.'
+                : 'Mensagem formatada e pronta para envio no WhatsApp!'}
             </p>
           </div>
 
@@ -710,3 +1001,4 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     </div>
   );
 };
+
