@@ -114,10 +114,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       if (!servings) setServings('15 a 20 fatias');
     }
 
-    // 5. Addons default requirement for cakes (ensure at least 1 is pre-selected if required)
-    if (minAddons > 0 && selectedAddons.length === 0 && availableAddons.length > 0) {
-      setSelectedAddons([availableAddons[0].name]);
-    }
   }, [category, isOpen, requires2Flavors, minAddons]);
 
   if (!isOpen) return null;
@@ -261,7 +257,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               <span>1. Escolha o Produto</span>
               {isCake && (
                 <span className="text-[10px] text-[#D81E5B] font-semibold">
-                  Massa + 2 Recheios + Mín. 1 Adicional
+                  Massa + Recheio + Mín. 1 Adicional
                 </span>
               )}
             </label>
@@ -315,7 +311,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-[#D81E5B]" />
-                  3. {requires2Flavors ? 'Sabores & Recheios (2 Tipos Obrigatórios)' : 'Recheio / Sabor'}
+                  3. {requires2Flavors ? 'Sabores & Recheios (2 Tipos Obrigatórios)' : 'Recheio / Sabor (Obrigatório)'}
                 </label>
                 <span className="text-[10px] font-extrabold uppercase bg-[#FFF0F4] text-[#B8134B] border border-[#FAD0DE] px-2 py-0.5 rounded-full">
                   {requires2Flavors ? '* 2 Recheios Obrigatórios' : '* Obrigatório'}
