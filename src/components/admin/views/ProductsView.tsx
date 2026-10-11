@@ -894,7 +894,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                       <select
                         value={editingProduct.min_flavors ?? (editingProduct.category === 'bolos' ? 2 : 1)}
                         onChange={(e) => {
-                          const count = parseInt(e.target.value) || 2;
+                          const count = Number(e.target.value);
                           setEditingProduct({ ...editingProduct, min_flavors: count, max_flavors: count });
                         }}
                         className="w-full text-xs p-2 rounded-lg border border-[#FAD0DE] bg-[#FFFDFC]"
@@ -902,6 +902,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                         <option value="0">Nenhum recheio</option>
                         <option value="1">1 Recheio Obrigatório</option>
                         <option value="2">2 Recheios Obrigatórios</option>
+                        <option value="3">3 Recheios Obrigatórios</option>
                       </select>
                       <span className="text-[10px] text-[#8C5D6C] block">Ex: 2 tipos de recheio para bolo decorado</span>
                     </div>

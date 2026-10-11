@@ -49,6 +49,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [batter, setBatter] = useState<string>('');
   const [flavor1, setFlavor1] = useState<string>('');
   const [flavor2, setFlavor2] = useState<string>('');
+  const [flavor3, setFlavor3] = useState<string>('');
   const [selectedSalgadoFlavors, setSelectedSalgadoFlavors] = useState<string[]>([]);
   const [selectedPack, setSelectedPack] = useState<string>('');
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
@@ -130,6 +131,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     : 0;
   const requiresFlavors = requiredFlavorCount > 0 && availableFlavors.length > 0;
   const requires2Flavors = requiresFlavors && requiredFlavorCount >= 2;
+  const requires3Flavors = requiresFlavors && requiredFlavorCount >= 3;
   const minAddons = selectedProductObj?.min_addons ?? (isCake ? 1 : 0);
 
   // Synchronize options when category changes or modal opens
@@ -202,6 +204,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           setFlavor2(availableFlavors[1]?.name || availableFlavors[0]?.name || '');
         }
       }
+
+      if (requires3Flavors) {
+        const flav3Exists = availableFlavors.some(f => f.name === flavor3);
+        if (!flav3Exists) {
+          setFlavor3(availableFlavors[2]?.name || availableFlavors[0]?.name || '');
+        }
+      }
     }
 
     // 3. Packaging sync
@@ -229,7 +238,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         ? [availableAddons[0].name]
         : valid;
     });
-  }, [category, isOpen, requiresBatter, requiresFlavors, requires2Flavors, minAddons, isSalgados, availableBatters, availableFlavors, availablePackaging, availableVariations, availableAddons]);
+  }, [category, isOpen, requiresBatter, requiresFlavors, requires2Flavors, requires3Flavors, minAddons, isSalgados, availableBatters, availableFlavors, availablePackaging, availableVariations, availableAddons]);
 
   if (!isOpen) return null;
 
@@ -238,6 +247,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const selectedBatterObj = availableBatters.find((b) => b.name === batter);
   const selectedFlavor1Obj = availableFlavors.find((f) => f.name === flavor1);
   const selectedFlavor2Obj = availableFlavors.find((f) => f.name === flavor2);
+  const selectedFlavor3Obj = availableFlavors.find((f) => f.name === flavor3);
   const selectedPackagingObj = availablePackaging.find((p) => p.name === selectedPack);
 
   // Price calculation - CONTABILIZAÇÃO COMPLETA DE TUDO
@@ -248,6 +258,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const batterExtra = selectedBatterObj?.additional_price || 0;
   const flavor1Extra = !isSalgados ? (selectedFlavor1Obj?.additional_price || 0) : 0;
   const flavor2Extra = (!isSalgados && requires2Flavors) ? (selectedFlavor2Obj?.additional_price || 0) : 0;
+  const flavor3Extra = (!isSalgados && requires3Flavors) ? (selectedFlavor3Obj?.additional_price || 0) : 0;
   
   // Salgados extras (caso algum sabor especial tenha preço adicional)
   const salgadosFlavorsExtra = isSalgados
@@ -264,7 +275,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   }, 0);
 
   // Contabilização de todo o conjunto no pedido final
-  const estimatedTotal = basePrice + batterExtra + flavor1Extra + flavor2Extra + salgadosFlavorsExtra + packagingExtra + addonsExtra;
+  const estimatedTotal = basePrice + batterExtra + flavor1Extra + flavor2Extra + flavor3Extra + salgadosFlavorsExtra + packagingExtra + addonsExtra;
 
   // Upload de foto de inspiração
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -304,8 +315,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         return;
       }
 
-      if (requiresFlavors && (!flavor1 || (requires2Flavors && !flavor2) || flavor1.trim() === '' || (requires2Flavors && flavor2.trim() === ''))) {
-        setValidationError(`Por favor, selecione obrigatoriamente ${requires2Flavors ? 'os 2 tipos de recheio' : 'o recheio'}.`);
+      const requiredFlavors = [flavor1, flavor2, flavor3].slice(0, requiredFlavorCount);
+      if (requiresFlavors && requiredFlavors.some((flavor) => !flavor.trim())) {
+        setValidationError(`Por favor, selecione obrigatoriamente ${requiredFlavorCount} ${requiredFlavorCount === 1 ? 'recheio' : 'tipos de recheio'}.`);
         return;
       }
     }
@@ -322,7 +334,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       (batter && !isSalgados ? `🍰 *Tipo de Massa (Obrigatório):* ${batter} ${batterExtra > 0 ? `(+R$ ${batterExtra.toFixed(2)})` : '(Inclusa)'}\n` : '') +
       (isSalgados
         ? `🥟 *Sabores dos Salgados (Sem Limite):* ${selectedSalgadoFlavors.join(', ')} ${salgadosFlavorsExtra > 0 ? `(+R$ ${salgadosFlavorsExtra.toFixed(2)})` : '(Inclusos)'}\n`
-        : requires2Flavors 
+        : requires3Flavors
+          ? `🍓 *1º Recheio (Obrigatório):* ${flavor1} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2)})` : '(Incluso)'}\n` +
+            `🍫 *2º Recheio (Obrigatório):* ${flavor2} ${flavor2Extra > 0 ? `(+R$ ${flavor2Extra.toFixed(2)})` : '(Incluso)'}\n` +
+            `🍰 *3º Recheio (Obrigatório):* ${flavor3} ${flavor3Extra > 0 ? `(+R$ ${flavor3Extra.toFixed(2)})` : '(Incluso)'}\n`
+          : requires2Flavors
           ? `🍓 *1º Recheio (Obrigatório):* ${flavor1} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2)})` : '(Incluso)'}\n` +
             `🍫 *2º Recheio (Obrigatório):* ${flavor2} ${flavor2Extra > 0 ? `(+R$ ${flavor2Extra.toFixed(2)})` : '(Incluso)'}\n`
           : (requiresFlavors && flavor1 ? `🍓 *Recheio / Sabor:* ${flavor1 || 'Padrão'} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2)})` : ''}\n` : '')
@@ -343,7 +359,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       product_name: category,
       batter: !isSalgados ? batter : undefined,
       quantity: servings,
-      flavors: isSalgados ? selectedSalgadoFlavors : (requires2Flavors ? [flavor1, flavor2] : requiresFlavors ? [flavor1] : []),
+      flavors: isSalgados ? selectedSalgadoFlavors : [flavor1, flavor2, flavor3].slice(0, requiresFlavors ? requiredFlavorCount : 0),
       packaging: selectedPack,
       addons: selectedAddons,
       date: date || 'A combinar',
@@ -561,20 +577,20 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-[#D81E5B]" />
-                    3. {requires2Flavors ? 'Sabores & Recheios (2 Tipos Obrigatórios)' : 'Recheio / Sabor'}
+                    3. {requires2Flavors ? `Sabores & Recheios (${requiredFlavorCount} Tipos Obrigatórios)` : 'Recheio / Sabor'}
                   </label>
                   <span className="text-[10px] font-extrabold uppercase bg-[#FFF0F4] text-[#B8134B] border border-[#FAD0DE] px-2 py-0.5 rounded-full">
-                    {requires2Flavors ? '* 2 Recheios Obrigatórios' : '* Obrigatório'}
+                    {requires2Flavors ? `* ${requiredFlavorCount} Recheios Obrigatórios` : '* Obrigatório'}
                   </span>
                 </div>
 
                 {requires2Flavors ? (
                   <>
                     <p className="text-[11px] text-[#7A505D]">
-                      Os bolos decorados levam 2 camadas generosas de recheio. Escolha os 2 tipos abaixo:
+                      Escolha os {requiredFlavorCount} tipos de recheio abaixo:
                     </p>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className={`grid grid-cols-1 ${requires3Flavors ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3 pt-1`}>
                       <div>
                         <span className="text-[11px] font-bold text-[#3D1E26] mb-1 block">
                           1º Recheio (Camada 1):
@@ -610,6 +626,25 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           ))}
                         </select>
                       </div>
+                      {requires3Flavors && (
+                        <div>
+                          <span className="text-[11px] font-bold text-[#3D1E26] mb-1 block">
+                            3º Recheio (Camada 3):
+                          </span>
+                          <select
+                            value={flavor3}
+                            required
+                            onChange={(e) => setFlavor3(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-[#FAD0DE] bg-white text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] cursor-pointer text-xs"
+                          >
+                            {availableFlavors.map((f) => (
+                              <option key={f.id} value={f.name}>
+                                {f.name} {f.additional_price > 0 ? `(+R$ ${f.additional_price.toFixed(2)})` : '(Incluso)'}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -931,6 +966,21 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     {salgadosFlavorsExtra > 0 ? `+ R$ ${salgadosFlavorsExtra.toFixed(2)}` : 'Inclusos'}
                   </span>
                 </div>
+              ) : requires3Flavors ? (
+                <>
+                  <div className="flex justify-between">
+                    <span>• 1º Recheio ({flavor1 || 'Não selecionado'}):</span>
+                    <span className="font-semibold text-[#3D1E26]">{flavor1Extra > 0 ? `+ R$ ${flavor1Extra.toFixed(2)}` : 'Incluso'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>• 2º Recheio ({flavor2 || 'Não selecionado'}):</span>
+                    <span className="font-semibold text-[#3D1E26]">{flavor2Extra > 0 ? `+ R$ ${flavor2Extra.toFixed(2)}` : 'Incluso'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>• 3º Recheio ({flavor3 || 'Não selecionado'}):</span>
+                    <span className="font-semibold text-[#3D1E26]">{flavor3Extra > 0 ? `+ R$ ${flavor3Extra.toFixed(2)}` : 'Incluso'}</span>
+                  </div>
+                </>
               ) : requires2Flavors ? (
                 <>
                   <div className="flex justify-between">
