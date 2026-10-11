@@ -314,6 +314,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
             const numPackaging = prod.packaging?.length || 0;
             const numAddons = prod.addons?.length || 0;
             const isCakeCategory = prod.category === 'bolos' || prod.category === 'bento';
+            const isSalgadosCategory = prod.category === 'salgados';
 
             return (
               <div
@@ -368,10 +369,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                     )}
 
                     {/* Botões de acesso rápido às particularidades do produto */}
-                    <div className={`grid gap-2 mb-4 ${isCakeCategory ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
+                    <div className={`grid gap-2 mb-4 ${isCakeCategory ? 'grid-cols-2 sm:grid-cols-3' : isSalgadosCategory ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-4'}`}>
                       
-                      {/* Massas exclusivo para bolos ou se configurado */}
-                      {(isCakeCategory || numBatters > 0) && (
+                      {/* Massas exclusivo para bolos ou se configurado; salgados não usam massa configurável */}
+                      {!isSalgadosCategory && (isCakeCategory || numBatters > 0) && (
                         <button
                           type="button"
                           onClick={() => handleOpenEditProduct(prod, 'massas')}
@@ -390,14 +391,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                         onClick={() => handleOpenEditProduct(prod, 'variacoes')}
                         className="p-2 rounded-xl bg-[#FFF9FB] hover:bg-[#FFF0F4] border border-[#FAD0DE] text-left transition-colors cursor-pointer group"
                       >
-                        <span className="block text-[10px] font-bold text-[#7A505D] uppercase">Tamanhos</span>
+                        <span className="block text-[10px] font-bold text-[#7A505D] uppercase">{isSalgadosCategory ? 'Quantidade obrigatória' : 'Tamanhos'}</span>
                         <span className="text-xs font-bold text-[#D81E5B] flex items-center gap-1">
                           <Layers className="w-3 h-3" />
                           {numVariations} opções
                         </span>
                       </button>
 
-                      <button
+                      {!isSalgadosCategory && <button
                         type="button"
                         onClick={() => handleOpenEditProduct(prod, 'sabores')}
                         className="p-2 rounded-xl bg-[#FFF9FB] hover:bg-[#FFF0F4] border border-[#FAD0DE] text-left transition-colors cursor-pointer group"
@@ -407,9 +408,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                           <Sparkles className="w-3 h-3" />
                           {numFlavors} sabores
                         </span>
-                      </button>
+                      </button>}
 
-                      <button
+                      {!isSalgadosCategory && <button
                         type="button"
                         onClick={() => handleOpenEditProduct(prod, 'embalagens')}
                         className="p-2 rounded-xl bg-[#FFF9FB] hover:bg-[#FFF0F4] border border-[#FAD0DE] text-left transition-colors cursor-pointer group"
@@ -419,9 +420,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                           <Box className="w-3 h-3" />
                           {numPackaging} opções
                         </span>
-                      </button>
+                      </button>}
 
-                      <button
+                      {!isSalgadosCategory && <button
                         type="button"
                         onClick={() => handleOpenEditProduct(prod, 'adicionais')}
                         className="p-2 rounded-xl bg-[#FFF9FB] hover:bg-[#FFF0F4] border border-[#FAD0DE] text-left transition-colors cursor-pointer group"
@@ -431,7 +432,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                           <Gift className="w-3 h-3" />
                           {numAddons} itens
                         </span>
-                      </button>
+                      </button>}
 
                     </div>
                   </div>
@@ -489,13 +490,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
           <div className="flex items-center gap-1.5 p-1 bg-[#FFF0F4] rounded-2xl border border-[#FAD0DE] mb-6 overflow-x-auto">
             {[
               { id: 'geral', label: '1. Dados Gerais', icon: <Cake className="w-4 h-4" /> },
-              ...(editingProduct.category === 'bolos' || editingProduct.category === 'bento' || (editingProduct.batters && editingProduct.batters.length > 0) ? [
+              ...(editingProduct.category !== 'salgados' && (editingProduct.category === 'bolos' || editingProduct.category === 'bento' || (editingProduct.batters && editingProduct.batters.length > 0)) ? [
                 { id: 'massas', label: `2. Massas (${editingProduct.batters?.length || 0})`, icon: <Cake className="w-4 h-4 text-[#D81E5B]" /> }
               ] : []),
-              { id: 'variacoes', label: `Tamanhos (${editingProduct.variations?.length || 0})`, icon: <Layers className="w-4 h-4" /> },
-              { id: 'sabores', label: `Recheios (${editingProduct.flavors?.length || 0})`, icon: <Sparkles className="w-4 h-4" /> },
-              { id: 'embalagens', label: `Embalagens (${editingProduct.packaging?.length || 0})`, icon: <Box className="w-4 h-4" /> },
-              { id: 'adicionais', label: `Adicionais (${editingProduct.addons?.length || 0})`, icon: <Gift className="w-4 h-4" /> },
+              { id: 'variacoes', label: editingProduct.category === 'salgados' ? `Quantidade obrigatória (${editingProduct.variations?.length || 0})` : `Tamanhos (${editingProduct.variations?.length || 0})`, icon: <Layers className="w-4 h-4" /> },
+              ...(editingProduct.category === 'salgados' ? [] : [
+                { id: 'sabores', label: `Recheios (${editingProduct.flavors?.length || 0})`, icon: <Sparkles className="w-4 h-4" /> },
+                { id: 'embalagens', label: `Embalagens (${editingProduct.packaging?.length || 0})`, icon: <Box className="w-4 h-4" /> },
+                { id: 'adicionais', label: `Adicionais (${editingProduct.addons?.length || 0})`, icon: <Gift className="w-4 h-4" /> },
+              ]),
             ].map((tab) => (
               <button
                 key={tab.id}

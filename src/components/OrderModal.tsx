@@ -65,7 +65,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const requires2Flavors = requiredFlavors >= 2;
   const minAddons = selectedProductObj?.min_addons ?? 0;
   const hasConfiguredRules = requiresBatter || requiredFlavors > 0 || minAddons > 0;
-  const isCake = selectedProductObj?.category === 'bolos' || selectedProductObj?.category === 'bento' || requiresBatter;
+  const isSalgados = selectedProductObj?.category === 'salgados';
+  const isCake = !isSalgados && (selectedProductObj?.category === 'bolos' || selectedProductObj?.category === 'bento' || requiresBatter);
 
   // Synchronize options when category changes or modal opens
   useEffect(() => {
@@ -159,6 +160,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setValidationError(requires2Flavors
         ? 'Por favor, selecione obrigatoriamente os 2 tipos de recheio definidos para este produto.'
         : 'Por favor, selecione obrigatoriamente 1 tipo de recheio definido para este produto.');
+      return;
+    }
+
+    if (isSalgados && (!servings || servings.trim() === '')) {
+      setValidationError('Por favor, escolha obrigatoriamente meio cento ou cento de salgados.');
       return;
     }
 
@@ -281,7 +287,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </div>
 
           {/* 2. Tipo de Massa do Bolo (OBRIGATÓRIO) */}
-          {availableBatters.length > 0 && (
+          {!isSalgados && availableBatters.length > 0 && (
             <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-2">
               <label className="block text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
@@ -311,7 +317,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           )}
 
           {/* 3. Recheios do Bolo (2 TIPOS OBRIGATORIAMENTE OU 1 TIPO) */}
-          {availableFlavors.length > 0 && (
+          {!isSalgados && availableFlavors.length > 0 && (
             <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-3">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center gap-1.5">
@@ -385,13 +391,24 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             </div>
           )}
 
-          {/* 4. Tamanho / Variação ou Fatias */}
+          {/* 4. Quantidade / Tamanho / Variação */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider">
-                4. Tamanho / Opção
+                {isSalgados ? '4. Quantidade de Salgados (Obrigatória)' : '4. Tamanho / Opção'}
               </label>
-              {availableVariations.length > 0 ? (
+              {isSalgados ? (
+                <select
+                  value={servings}
+                  required
+                  onChange={(e) => setServings(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-[#FAD0DE] bg-[#FFFDFC] text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] cursor-pointer"
+                >
+                  <option value="">Selecione a quantidade</option>
+                  <option value="Meio cento de salgados">Meio cento de salgados</option>
+                  <option value="Cento de salgados">Cento de salgados</option>
+                </select>
+              ) : availableVariations.length > 0 ? (
                 <select
                   value={servings}
                   onChange={(e) => setServings(e.target.value)}
@@ -434,7 +451,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </div>
 
           {/* 5. Packaging (Particular do produto selecionado) */}
-          {availablePackaging.length > 0 && (
+          {!isSalgados && availablePackaging.length > 0 && (
             <div>
               <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider flex items-center justify-between">
                 <span>6. Opção de Embalagem</span>
@@ -455,7 +472,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           )}
 
           {/* 6. Adicionais & Opcionais (NO MÍNIMO 1 OBRIGATÓRIO PARA BOLO) */}
-          {availableAddons.length > 0 && (
+          {!isSalgados && availableAddons.length > 0 && (
             <div className={`p-4 rounded-2xl border space-y-2.5 transition-colors ${
               minAddons > 0 && selectedAddons.length < minAddons 
                 ? 'bg-rose-50/70 border-rose-300' 
