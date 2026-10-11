@@ -176,8 +176,9 @@ class StoreService {
 
   private async initSupabaseSync(): Promise<void> {
     if (!isSupabaseConfigured || !supabase) return;
+    const client = supabase;
     try {
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('site_content')
         .select('*')
         .eq('id', 'published_main')
@@ -188,6 +189,18 @@ class StoreService {
         this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
         this.notify();
       }
+      // Changes published by an authenticated administrator are propagated to
+      // every open public page without a refresh.
+      client.channel('site-content-live')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'site_content', filter: 'id=eq.published_main' }, async () => {
+          const { data: fresh } = await client.from('site_content').select('content').eq('id', 'published_main').single();
+          if (fresh?.content) {
+            this.publishedData = fresh.content as AppDatabase;
+            this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
+            this.notify();
+          }
+        })
+        .subscribe();
     } catch {
       // Supabase table might not exist yet; schema.sql is provided for setup
     }
@@ -246,11 +259,12 @@ class StoreService {
 
       // If connected to Supabase, also sync to draft table
       if (isSupabaseConfigured && supabase) {
-        await supabase.from('site_content').upsert({
+        const { error } = await supabase.from('site_content').upsert({
           id: 'draft_main',
           content: this.draftData,
           updated_at: new Date().toISOString(),
         });
+        if (error) throw error;
       }
 
       this.setSaveStatus('saved');
@@ -280,17 +294,19 @@ class StoreService {
       this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
 
       if (isSupabaseConfigured && supabase) {
-        await supabase.from('site_content').upsert({
+        const { error: publishError } = await supabase.from('site_content').upsert({
           id: 'published_main',
           content: this.publishedData,
           published_at: now,
           published_by: authorName,
         });
-        await supabase.from('site_content').upsert({
+        if (publishError) throw publishError;
+        const { error: draftError } = await supabase.from('site_content').upsert({
           id: 'draft_main',
           content: this.draftData,
           updated_at: now,
         });
+        if (draftError) throw draftError;
       }
 
       this.setSaveStatus('saved');
@@ -324,19 +340,21 @@ class StoreService {
 
       // If Supabase is connected, write to published_main
       if (isSupabaseConfigured && supabase) {
-        await supabase.from('site_content').upsert({
+        const { error: publishError } = await supabase.from('site_content').upsert({
           id: 'published_main',
           content: this.publishedData,
           published_at: now,
           published_by: authorName,
         });
+        if (publishError) throw publishError;
 
         // Also record publish history log
-        await supabase.from('publish_history').insert({
+        const { error: historyError } = await supabase.from('publish_history').insert({
           published_by: authorName,
           created_at: now,
           summary: 'Publicação completa do catálogo e conteúdo do site',
         });
+        if (historyError) throw historyError;
       }
 
       this.setSaveStatus('saved');
@@ -386,9 +404,11 @@ class StoreService {
     this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
     this.notify();
 
-    if (isSupabaseConfigured && supabase) {
-      supabase.from('order_events').insert(newOrder).then();
-    }
+    // Public quote telemetry is sent through the Vercel function. The browser
+    // never receives a privileged key and the endpoint applies rate limits.
+    void fetch('/api/orders', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(newOrder),
+    }).catch(() => undefined);
 
     return newOrder;
   }

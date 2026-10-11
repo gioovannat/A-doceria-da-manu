@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Upload, X, Image as ImageIcon, CheckCircle, RefreshCw } from 'lucide-react';
 import { Button } from './Button';
+import { uploadSiteImage } from '../../lib/media';
 import heroCakeImg from '../../assets/images/hero_manu_cake_1790115919579.jpg';
 import vintageHeartCakeImg from '../../assets/images/heart_cake_scorpio_1790121371507.jpg';
 import bentoCakeImg from '../../assets/images/bento_cake_clamshell_1790115999871.jpg';
@@ -38,6 +39,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPresets, setShowPresets] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   const aspectClasses = {
     square: 'aspect-square max-h-48',
@@ -46,7 +48,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
     auto: 'min-h-[160px]',
   }[aspectRatio];
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     setError(null);
     const validMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
 
@@ -60,16 +62,14 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        onChange(reader.result);
-      }
-    };
-    reader.onerror = () => {
-      setError('Erro ao processar imagem.');
-    };
-    reader.readAsDataURL(file);
+    try {
+      setUploading(true);
+      onChange(await uploadSiteImage(file));
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : 'Erro ao enviar imagem.');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const onDragOver = (e: React.DragEvent) => {
@@ -156,7 +156,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
               Imagem Selecionada
             </span>
             <p className="text-[11px] text-[#7A505D] truncate max-w-xs">
-              {value.startsWith('data:') ? 'Imagem carregada do computador' : value}
+              {uploading ? 'Enviando para a galeria segura...' : value}
             </p>
 
             <div className="flex items-center gap-2 mt-1">
@@ -165,7 +165,8 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                 size="sm"
                 variant="outline"
                 icon={<RefreshCw className="w-3 h-3" />}
-                onClick={() => fileInputRef.current?.click()}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
               >
                 Substituir
               </Button>
@@ -198,7 +199,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
             <Upload className="w-6 h-6" />
           </div>
           <p className="text-xs sm:text-sm font-bold text-[#3D1E26]">
-            Clique para enviar ou arraste a foto aqui
+            {uploading ? 'Enviando imagem...' : 'Clique para enviar ou arraste a foto aqui'}
           </p>
           <p className="text-[11px] text-[#7A505D] mt-1">
             JPG, PNG ou WEBP (máximo {maxSizeMB}MB)

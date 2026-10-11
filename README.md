@@ -1,103 +1,37 @@
-# A Doceria da Manu — Confeitaria Artesanal & Painel Administrativo
+# A Doceria da Manu
 
-Este repositório contém a aplicação web completa da **A Doceria da Manu**, integrando:
-1. **Site Público de Alta Conversão:** Landing page gastronômica elegante, rápida e otimizada para SEO local em Paço do Lumiar e Grande São Luís.
-2. **Painel Administrativo Privado:** Área de gestão isolada e protegida para controle completo do cardápio, produtos, sabores, preços, imagens, horários, políticas e orçamentos do WhatsApp, sem necessidade de editar código.
+Site Vite/React com painel privado em `/atelier-gestao`, Supabase Auth, banco de conteúdo, Storage para imagens e atualização em tempo real. O layout visual original foi preservado.
 
----
+## Segurança aplicada
 
-## 🔒 Arquitetura de Segurança & Separação de Rotas
+- O frontend usa somente a chave **publishable/anon** do Supabase; a `SUPABASE_SERVICE_ROLE_KEY` existe apenas na Function da Vercel.
+- Não há senha mestre, login local ou privilégio baseado em `user_metadata` no código.
+- RLS restringe a área pública a `published_main`; perfis `admin` e `editor` controlam o conteúdo, e apenas `admin` administra perfis.
+- Imagens são enviadas para o bucket `site-media`; os arquivos têm nomes UUID, tamanho máximo de 5 MB e tipos JPG/PNG/WebP.
+- Publicações atualizam as páginas abertas via Supabase Realtime.
+- `POST /api/orders` valida a entrada e aplica limite persistente de 8 pedidos por IP (hash do IP) a cada 10 minutos antes de gravar com a chave de servidor.
 
-- **Área Pública (`/`):** Acessível a todos os visitantes. **Não contém links, botões ou referências ao painel**.
-- **Área Administrativa (Configurável via `VITE_ADMIN_BASE_PATH`):**
-  - Rota padrão: `/atelier-gestao`
-  - Login administrativo: `/atelier-gestao/acesso`
-  - Rotas internas: `/atelier-gestao/produtos`, `/atelier-gestao/inicio`, etc.
-  - **Proteção Real:** Redirecionamento e bloqueio server/client-side para usuários não autenticados.
+## Configuração do Supabase
 
----
+1. Crie um projeto Supabase e, no SQL Editor, execute [a migração](supabase/migrations/20261011000000_secure_site_backend.sql).
+2. Em Authentication → Users, crie a conta do administrador com uma senha forte.
+3. No SQL Editor, atribua o perfil à conta criada (substitua o e-mail):
 
-## 🚀 Como Iniciar Localmente
-
-### 1. Clonar o repositório
-```bash
-git clone https://github.com/seu-usuario/adoceria-da-manu.git
-cd adoceria-da-manu
-```
-
-### 2. Instalar dependências
-```bash
-npm install
-```
-
-### 3. Configurar variáveis de ambiente
-Copie o arquivo `.env.example` para `.env`:
-```bash
-cp .env.example .env
-```
-
-### 4. Executar em desenvolvimento
-```bash
-npm run dev
-```
-Acesse o site público em: `http://localhost:3000`  
-Acesse o painel administrativo em: `http://localhost:3000/atelier-gestao`
-
----
-
-## 🗄️ Integração com Supabase
-
-### 1. Criar Projeto no Supabase
-1. Acesse [supabase.com](https://supabase.com) e crie um novo projeto.
-2. Anote a **URL do Projeto** e a chave **anon public**.
-
-### 2. Executar o Script SQL do Banco
-1. No painel do Supabase, vá em **SQL Editor**.
-2. Abra o arquivo localizado em `supabase/schema.sql` deste projeto.
-3. Cole e execute o script. Ele criará:
-   - Tabela `profiles` com controle de papéis (`admin`, `editor`).
-   - Tabela `site_content` para separação de **Rascunho** e **Publicado**.
-   - Tabelas de `products`, `specialties`, `flavors`, `packaging_options`, `addons`, `courses`, `business_hours`, `pickup_windows`, `faqs`, `order_events` e `publish_history`.
-   - **Row Level Security (RLS)** ativado em todas as tabelas.
-
-### 3. Criar o Primeiro Usuário Administrador
-No Supabase:
-1. Vá em **Authentication** > **Users** > **Add User** (ou crie via tela de login após conectar).
-2. Cadastre o e-mail: `admin@adoceriadamanu.com.br` e defina uma senha forte.
-3. No **SQL Editor**, vincule o papel de admin ao usuário criado:
 ```sql
-INSERT INTO public.profiles (id, email, name, role)
-SELECT id, email, 'Emanuelly Santos (Manu)', 'admin'
-FROM auth.users
-WHERE email = 'admin@adoceriadamanu.com.br'
-ON CONFLICT (id) DO UPDATE SET role = 'admin';
+insert into public.profiles (id, email, name, role)
+select id, email, 'Emanuelly Santos (Manu)', 'admin'
+from auth.users
+where email = 'admin@adoceriadamanu.com.br'
+on conflict (id) do update set role = excluded.role, name = excluded.name;
 ```
 
----
+4. Em Database → Replication/Pipelines, confirme que `site_content` está habilitada para Realtime. A migração tenta incluí-la automaticamente.
+5. Copie `.env.example` para `.env.local`, preencha as variáveis e rode `npm install` seguido de `npm run dev`.
 
-## 🌐 Deploy na Vercel
+## Deploy Vercel
 
-1. Envie o projeto para o GitHub:
-```bash
-git add .
-git commit -m "feat: Painel administrativo completo da Doceria da Manu"
-git push origin main
-```
-2. Na [Vercel](https://vercel.com), clique em **New Project** e importe o repositório.
-3. Em **Environment Variables**, adicione:
-   - `VITE_SUPABASE_URL` = sua URL do Supabase
-   - `VITE_SUPABASE_ANON_KEY` = sua chave pública anon
-   - `VITE_ADMIN_BASE_PATH` = `/atelier-gestao` (ou o caminho privativo escolhido)
-   - `NEXT_PUBLIC_SITE_URL` = `https://www.adoceriadamanu.com.br`
-4. Clique em **Deploy**. O arquivo `vercel.json` já configurou os rewrites automáticos para rotas SPA.
+1. Envie o repositório ao GitHub sem arquivos `.env*` reais.
+2. Importe-o na Vercel e configure `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_ADMIN_BASE_PATH`, `VITE_SITE_URL`, `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`.
+3. Habilite a proteção/rate limiting da Vercel para `/api/orders` como segunda camada contra abuso.
 
----
-
-## 📋 Funcionalidades do Painel
-
-- **Rascunho vs Publicação:** Altere preços, textos e fotos salvando rascunhos com segurança. As mudanças só vão para o ar após clicar em **"Publicar no Site"**.
-- **Pré-visualização Integrada:** Veja em tempo real a aparência no **Desktop**, **Tablet** e **Mobile** antes de publicar.
-- **Gerenciador de Sabores & Adicionais:** Crie novos recheios, topos de bolo personalizados e embalagens de luxo.
-- **Status do Ateliê em Tempo Real:** Alterne entre *Ateliê Aberto*, *Somente Encomendas*, *Agenda Lotada* e *Pronta Entrega*.
-- **Gerador de Orçamentos para WhatsApp:** Calcule itens e envie mensagens profissionais formatadas instantaneamente.
-- **Backup Completo:** Baixe ou restaure backups em JSON a qualquer momento.
+O Vercel constrói a SPA e atende a Function em `api/orders.ts`; `vercel.json` preserva os rewrites para as rotas do painel.
