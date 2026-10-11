@@ -357,18 +357,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                       {prod.full_description}
                     </p>
 
-                    {/* Regras obrigatórias do bolo */}
-                    {(prod.category === 'bolos' || prod.requires_batter || (prod.min_flavors && prod.min_flavors > 1)) && (
+                    {/* Regras configuradas para aparecer no orçamento final */}
+                    {(prod.requires_batter || (prod.min_flavors || 0) > 0 || (prod.min_addons || 0) > 0) && (
                       <div className="flex flex-wrap gap-1.5 mb-3.5">
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]">
-                          <Check className="w-3 h-3 text-[#D81E5B]" /> Massa Obrigatória
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]">
-                          <Check className="w-3 h-3 text-[#D81E5B]" /> {prod.min_flavors || 2} Recheios Obrigatórios
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]">
-                          <Check className="w-3 h-3 text-[#D81E5B]" /> Mín. {prod.min_addons || 1} Adicional
-                        </span>
+                        {prod.requires_batter && <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]"><Check className="w-3 h-3 text-[#D81E5B]" /> 1 Massa Obrigatória</span>}
+                        {(prod.min_flavors || 0) > 0 && <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]"><Check className="w-3 h-3 text-[#D81E5B]" /> {prod.min_flavors} Recheio{prod.min_flavors === 1 ? '' : 's'} Obrigatório{prod.min_flavors === 1 ? '' : 's'}</span>}
+                        {(prod.min_addons || 0) > 0 && <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]"><Check className="w-3 h-3 text-[#D81E5B]" /> Mín. {prod.min_addons} Adicional{prod.min_addons === 1 ? '' : 'ais'}</span>}
                       </div>
                     )}
 
@@ -645,7 +639,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                     </h5>
                   </div>
                   <p className="text-[11px] text-[#7A505D] leading-relaxed">
-                    Defina as exigências de montagem para o cliente (ex: escolha obrigatória de massa, 2 tipos de recheio e no mínimo 1 adicional). O conjunto de tudo selecionado é contabilizado no pedido final do cliente.
+                    Defina as exigências de montagem para este produto — bolo, bentô cake, kit festa ou docinhos finos. O cliente verá essas escolhas no orçamento e o valor de cada opção será somado ao pedido final.
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
@@ -705,7 +699,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
 
                   <div className="p-2.5 rounded-xl bg-[#FFF0F4] text-[11px] text-[#B8134B] font-medium flex items-center gap-2">
                     <Info className="w-4 h-4 shrink-0" />
-                    <span>O valor final soma: Tamanho do Bolo + Massa + 2 Recheios + Embalagem + Adicionais selecionados!</span>
+                    <span>O orçamento final soma o preço base, as variações, as opções obrigatórias e todos os adicionais selecionados pelo cliente.</span>
                   </div>
                 </div>
               </div>

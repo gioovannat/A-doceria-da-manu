@@ -58,11 +58,14 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     ? selectedProductObj.variations.filter(v => v.active)
     : [];
 
-  // Rules determination
-  const isCake = selectedProductObj?.category === 'bolos' || selectedProductObj?.requires_batter;
-  const requiresBatter = selectedProductObj?.requires_batter ?? (isCake && availableBatters.length > 0);
-  const requires2Flavors = (selectedProductObj?.min_flavors === 2) || (isCake && availableFlavors.length >= 2);
-  const minAddons = selectedProductObj?.min_addons ?? (isCake ? 1 : 0);
+  // As regras vêm do produto e podem ser configuradas pelo painel de gestão.
+  // O cliente só precisa cumprir o que estiver definido para o item selecionado.
+  const requiresBatter = selectedProductObj?.requires_batter ?? false;
+  const requiredFlavors = selectedProductObj?.min_flavors ?? 0;
+  const requires2Flavors = requiredFlavors >= 2;
+  const minAddons = selectedProductObj?.min_addons ?? 0;
+  const hasConfiguredRules = requiresBatter || requiredFlavors > 0 || minAddons > 0;
+  const isCake = selectedProductObj?.category === 'bolos' || selectedProductObj?.category === 'bento' || requiresBatter;
 
   // Synchronize options when category changes or modal opens
   useEffect(() => {
@@ -152,8 +155,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       return;
     }
 
-    if (requires2Flavors && (!flavor1 || !flavor2 || flavor1.trim() === '' || flavor2.trim() === '')) {
-      setValidationError('Por favor, selecione obrigatoriamente os 2 tipos de recheio para o seu bolo decorado.');
+    if (requiredFlavors > 0 && (!flavor1 || flavor1.trim() === '' || (requires2Flavors && (!flavor2 || flavor2.trim() === '')))) {
+      setValidationError(requires2Flavors
+        ? 'Por favor, selecione obrigatoriamente os 2 tipos de recheio definidos para este produto.'
+        : 'Por favor, selecione obrigatoriamente 1 tipo de recheio definido para este produto.');
       return;
     }
 
