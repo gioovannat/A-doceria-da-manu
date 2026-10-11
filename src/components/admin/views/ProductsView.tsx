@@ -57,12 +57,17 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
   const [newFlavor, setNewFlavor] = useState({ name: '', description: '', additional_price: 0 });
   const [newPackaging, setNewPackaging] = useState({ name: '', description: '', additional_price: 0, is_required: false });
   const [newAddon, setNewAddon] = useState({ name: '', description: '', price: 15, unit: 'unidade', image: '' });
+  const [editingBatter, setEditingBatter] = useState<CakeBatter | null>(null);
+  const [editingVariation, setEditingVariation] = useState<ProductVariation | null>(null);
+  const [editingFlavor, setEditingFlavor] = useState<Flavor | null>(null);
+  const [editingPackaging, setEditingPackaging] = useState<PackagingOption | null>(null);
   const [editingAddon, setEditingAddon] = useState<Addon | null>(null);
 
   // Modal exclusivo de gerenciamento de massas para todos os bolos
   const [isBattersModalOpen, setIsBattersModalOpen] = useState(false);
   const [customBattersList, setCustomBattersList] = useState<CakeBatter[]>([]);
   const [newGlobalBatter, setNewGlobalBatter] = useState({ name: '', description: '', additional_price: 0 });
+  const [editingGlobalBatter, setEditingGlobalBatter] = useState<CakeBatter | null>(null);
 
   // Carrega a lista consolidada de massas cadastradas no cardápio
   useEffect(() => {
@@ -99,6 +104,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
 
   const handleRemoveGlobalBatter = (id: string) => {
     setCustomBattersList((prev) => prev.filter(b => b.id !== id));
+  };
+
+  const handleSaveGlobalBatter = () => {
+    if (!editingGlobalBatter || !editingGlobalBatter.name.trim()) return;
+    setCustomBattersList((prev) => prev.map((b) =>
+      b.id === editingGlobalBatter.id ? { ...editingGlobalBatter, name: editingGlobalBatter.name.trim() } : b
+    ));
+    setEditingGlobalBatter(null);
   };
 
   const handleSaveAllBatters = () => {
@@ -281,6 +294,18 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
     });
   };
 
+  const handleSaveBatter = () => {
+    if (!editingProduct || !editingBatter || !editingBatter.name.trim()) return;
+    setEditingProduct({
+      ...editingProduct,
+      batters: editingProduct.batters?.map((b) =>
+        b.id === editingBatter.id ? { ...editingBatter, name: editingBatter.name.trim() } : b
+      ) || [],
+    });
+    setEditingBatter(null);
+    success('Massa atualizada. Salve as configurações do produto para publicar.');
+  };
+
   const handleAddVariationToProduct = () => {
     if (!editingProduct || !newVariation.name.trim()) return;
     const item: ProductVariation = {
@@ -309,6 +334,18 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
     });
   };
 
+  const handleSaveVariation = () => {
+    if (!editingProduct || !editingVariation || !editingVariation.name.trim()) return;
+    setEditingProduct({
+      ...editingProduct,
+      variations: editingProduct.variations?.map((v) =>
+        v.id === editingVariation.id ? { ...editingVariation, name: editingVariation.name.trim() } : v
+      ) || [],
+    });
+    setEditingVariation(null);
+    success('Tamanho atualizado. Salve as configurações do produto para publicar.');
+  };
+
   const handleAddFlavorToProduct = () => {
     if (!editingProduct || !newFlavor.name.trim()) return;
     const item: Flavor = {
@@ -332,6 +369,18 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
       ...editingProduct,
       flavors: editingProduct.flavors?.filter((f) => f.id !== id) || [],
     });
+  };
+
+  const handleSaveFlavor = () => {
+    if (!editingProduct || !editingFlavor || !editingFlavor.name.trim()) return;
+    setEditingProduct({
+      ...editingProduct,
+      flavors: editingProduct.flavors?.map((flavor) =>
+        flavor.id === editingFlavor.id ? { ...editingFlavor, name: editingFlavor.name.trim() } : flavor
+      ) || [],
+    });
+    setEditingFlavor(null);
+    success('Recheio atualizado. Salve as configurações do produto para publicar.');
   };
 
   const handleAddPackagingToProduct = () => {
@@ -358,6 +407,18 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
       ...editingProduct,
       packaging: editingProduct.packaging?.filter((p) => p.id !== id) || [],
     });
+  };
+
+  const handleSavePackaging = () => {
+    if (!editingProduct || !editingPackaging || !editingPackaging.name.trim()) return;
+    setEditingProduct({
+      ...editingProduct,
+      packaging: editingProduct.packaging?.map((packaging) =>
+        packaging.id === editingPackaging.id ? { ...editingPackaging, name: editingPackaging.name.trim() } : packaging
+      ) || [],
+    });
+    setEditingPackaging(null);
+    success('Embalagem atualizada. Salve as configurações do produto para publicar.');
   };
 
   const handleAddAddonToProduct = () => {
@@ -918,14 +979,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                           {bat.description && <p className="text-[11px] text-[#7A505D] mt-0.5">{bat.description}</p>}
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveBatterFromProduct(bat.id)}
-                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
-                          title="Remover tipo de massa"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingBatter({ ...bat })}
+                            className="p-1.5 text-[#D81E5B] hover:bg-[#FFF0F4] rounded-lg cursor-pointer"
+                            title="Editar tipo de massa"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveBatterFromProduct(bat.id)}
+                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
+                            title="Remover tipo de massa"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}
@@ -1001,13 +1072,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                           <span className="text-[10px] text-[#8C5D6C]">Prazo: {v.lead_time}</span>
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveVariationFromProduct(v.id)}
-                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingVariation({ ...v })}
+                            className="p-1.5 text-[#D81E5B] hover:bg-[#FFF0F4] rounded-lg cursor-pointer"
+                            title="Editar tamanho"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveVariationFromProduct(v.id)}
+                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
+                            title="Excluir tamanho"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}
@@ -1095,13 +1177,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                           {fl.description && <p className="text-[11px] text-[#7A505D] mt-0.5">{fl.description}</p>}
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveFlavorFromProduct(fl.id)}
-                          className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingFlavor({ ...fl })}
+                            className="p-1 text-[#D81E5B] hover:bg-[#FFF0F4] rounded-lg cursor-pointer"
+                            title="Editar recheio"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFlavorFromProduct(fl.id)}
+                            className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
+                            title="Excluir recheio"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}
@@ -1181,13 +1274,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                           {p.description && <p className="text-[11px] text-[#7A505D] mt-0.5">{p.description}</p>}
                         </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleRemovePackagingFromProduct(p.id)}
-                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingPackaging({ ...p })}
+                            className="p-1.5 text-[#D81E5B] hover:bg-[#FFF0F4] rounded-lg cursor-pointer"
+                            title="Editar embalagem"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePackagingFromProduct(p.id)}
+                            className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
+                            title="Excluir embalagem"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     ))
                   )}
@@ -1420,6 +1524,88 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
         </Modal>
       )}
 
+      {editingBatter && (
+        <Modal isOpen={true} onClose={() => setEditingBatter(null)} title={`Editar massa: ${editingBatter.name}`} size="lg">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input label="Nome" value={editingBatter.name} onChange={(e) => setEditingBatter({ ...editingBatter, name: e.target.value })} />
+              <Input label="Acréscimo de preço (R$)" type="number" step="0.5" value={editingBatter.additional_price || ''} onChange={(e) => setEditingBatter({ ...editingBatter, additional_price: parseFloat(e.target.value) || 0 })} />
+            </div>
+            <Input label="Descrição" value={editingBatter.description || ''} onChange={(e) => setEditingBatter({ ...editingBatter, description: e.target.value })} />
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#FEE7EF]">
+              <Button type="button" variant="outline" onClick={() => setEditingBatter(null)}>Cancelar</Button>
+              <Button type="button" variant="primary" onClick={handleSaveBatter}>Salvar alteração</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {editingVariation && (
+        <Modal isOpen={true} onClose={() => setEditingVariation(null)} title={`Editar tamanho: ${editingVariation.name}`} size="lg">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Input label="Nome" value={editingVariation.name} onChange={(e) => setEditingVariation({ ...editingVariation, name: e.target.value })} />
+              <Input label="Preço (R$)" type="number" step="1" value={editingVariation.price || ''} onChange={(e) => setEditingVariation({ ...editingVariation, price: parseFloat(e.target.value) || 0 })} />
+              <Input label="Prazo" value={editingVariation.lead_time} onChange={(e) => setEditingVariation({ ...editingVariation, lead_time: e.target.value })} />
+            </div>
+            <Input label="Descrição" value={editingVariation.description || ''} onChange={(e) => setEditingVariation({ ...editingVariation, description: e.target.value })} />
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#FEE7EF]">
+              <Button type="button" variant="outline" onClick={() => setEditingVariation(null)}>Cancelar</Button>
+              <Button type="button" variant="primary" onClick={handleSaveVariation}>Salvar alteração</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {editingFlavor && (
+        <Modal isOpen={true} onClose={() => setEditingFlavor(null)} title={`Editar recheio: ${editingFlavor.name}`} size="lg">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input label="Nome" value={editingFlavor.name} onChange={(e) => setEditingFlavor({ ...editingFlavor, name: e.target.value })} />
+              <Input label="Acréscimo de preço (R$)" type="number" step="0.5" value={editingFlavor.additional_price || ''} onChange={(e) => setEditingFlavor({ ...editingFlavor, additional_price: parseFloat(e.target.value) || 0 })} />
+            </div>
+            <Input label="Descrição" value={editingFlavor.description || ''} onChange={(e) => setEditingFlavor({ ...editingFlavor, description: e.target.value })} />
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#FEE7EF]">
+              <Button type="button" variant="outline" onClick={() => setEditingFlavor(null)}>Cancelar</Button>
+              <Button type="button" variant="primary" onClick={handleSaveFlavor}>Salvar alteração</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {editingPackaging && (
+        <Modal isOpen={true} onClose={() => setEditingPackaging(null)} title={`Editar embalagem: ${editingPackaging.name}`} size="lg">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input label="Nome" value={editingPackaging.name} onChange={(e) => setEditingPackaging({ ...editingPackaging, name: e.target.value })} />
+              <Input label="Acréscimo de preço (R$)" type="number" step="1" value={editingPackaging.additional_price || ''} onChange={(e) => setEditingPackaging({ ...editingPackaging, additional_price: parseFloat(e.target.value) || 0 })} />
+            </div>
+            <Input label="Descrição" value={editingPackaging.description || ''} onChange={(e) => setEditingPackaging({ ...editingPackaging, description: e.target.value })} />
+            <Switch label="Embalagem obrigatória" checked={editingPackaging.is_required} onChange={(is_required) => setEditingPackaging({ ...editingPackaging, is_required })} />
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#FEE7EF]">
+              <Button type="button" variant="outline" onClick={() => setEditingPackaging(null)}>Cancelar</Button>
+              <Button type="button" variant="primary" onClick={handleSavePackaging}>Salvar alteração</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {editingGlobalBatter && (
+        <Modal isOpen={true} onClose={() => setEditingGlobalBatter(null)} title={`Editar massa: ${editingGlobalBatter.name}`} size="lg">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input label="Nome" value={editingGlobalBatter.name} onChange={(e) => setEditingGlobalBatter({ ...editingGlobalBatter, name: e.target.value })} />
+              <Input label="Acréscimo de preço (R$)" type="number" step="0.5" value={editingGlobalBatter.additional_price || ''} onChange={(e) => setEditingGlobalBatter({ ...editingGlobalBatter, additional_price: parseFloat(e.target.value) || 0 })} />
+            </div>
+            <Input label="Descrição" value={editingGlobalBatter.description || ''} onChange={(e) => setEditingGlobalBatter({ ...editingGlobalBatter, description: e.target.value })} />
+            <div className="flex justify-end gap-3 pt-3 border-t border-[#FEE7EF]">
+              <Button type="button" variant="outline" onClick={() => setEditingGlobalBatter(null)}>Cancelar</Button>
+              <Button type="button" variant="primary" onClick={handleSaveGlobalBatter}>Salvar alteração</Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* MODAL GERAL DE CONFIGURAÇÃO DE MASSAS */}
       {isBattersModalOpen && (
         <Modal
@@ -1472,14 +1658,24 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                         )}
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveGlobalBatter(bat.id)}
-                        className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
-                        title="Remover massa"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingGlobalBatter({ ...bat })}
+                          className="p-1.5 text-[#D81E5B] hover:bg-[#FFF0F4] rounded-lg cursor-pointer transition-colors"
+                          title="Editar massa"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveGlobalBatter(bat.id)}
+                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors"
+                          title="Remover massa"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
