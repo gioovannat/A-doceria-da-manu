@@ -56,7 +56,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
   const [newVariation, setNewVariation] = useState({ name: '', description: '', price: 0, unit: 'unidade', lead_time: '48h' });
   const [newFlavor, setNewFlavor] = useState({ name: '', description: '', additional_price: 0 });
   const [newPackaging, setNewPackaging] = useState({ name: '', description: '', additional_price: 0, is_required: false });
-  const [newAddon, setNewAddon] = useState({ name: '', description: '', price: 15, unit: 'unidade' });
+  const [newAddon, setNewAddon] = useState({ name: '', description: '', price: 15, unit: 'unidade', image: '' });
 
   // Modal exclusivo de gerenciamento de massas para todos os bolos
   const [isBattersModalOpen, setIsBattersModalOpen] = useState(false);
@@ -367,13 +367,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
       description: newAddon.description,
       price: Number(newAddon.price) || 0,
       unit: newAddon.unit || 'unidade',
+      image: newAddon.image || undefined,
       active: true,
     };
     setEditingProduct({
       ...editingProduct,
       addons: [...(editingProduct.addons || []), item],
     });
-    setNewAddon({ name: '', description: '', price: 15, unit: 'unidade' });
+    setNewAddon({ name: '', description: '', price: 15, unit: 'unidade', image: '' });
     success('Adicional vinculado exclusivamente a este produto!');
   };
 
@@ -1249,7 +1250,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                         key={a.id}
                         className="p-3.5 rounded-2xl bg-white border border-[#FAD0DE] flex items-center justify-between gap-3 shadow-2xs"
                       >
-                        <div>
+                        <div className="flex items-center gap-3 min-w-0">
+                          {a.image && (
+                            <img src={a.image} alt="" className="w-10 h-10 rounded-xl object-cover border border-[#FAD0DE] shrink-0" />
+                          )}
+                          <div>
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-[#3D1E26]">{a.name}</span>
                             <span className="text-xs font-bold text-[#D81E5B]">
@@ -1257,6 +1262,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                             </span>
                           </div>
                           {a.description && <p className="text-[11px] text-[#7A505D] mt-0.5">{a.description}</p>}
+                          </div>
                         </div>
 
                         <button
@@ -1299,6 +1305,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                     placeholder="Descrição do adicional (ex: Nome e idade em acrílico ou papelaria)"
                     value={newAddon.description}
                     onChange={(e) => setNewAddon({ ...newAddon, description: e.target.value })}
+                  />
+                  <ImageUploader
+                    label="Foto de exemplo (opcional)"
+                    value={newAddon.image}
+                    onChange={(image) => setNewAddon({ ...newAddon, image })}
+                    aspectRatio="square"
                   />
                   <Button
                     type="button"

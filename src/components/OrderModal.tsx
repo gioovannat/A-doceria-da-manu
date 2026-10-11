@@ -749,9 +749,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           : 'bg-white border-[#FAD0DE] text-[#6B4651] hover:border-[#D81E5B]'
                       }`}
                     >
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <Check className={`w-3.5 h-3.5 ${isChecked ? 'opacity-100 text-[#D81E5B]' : 'opacity-0'}`} />
-                        <span>{add.name}</span>
+                        {add.image && (
+                          <img
+                            src={add.image}
+                            alt=""
+                            className="w-9 h-9 rounded-lg object-cover shrink-0 border border-[#FAD0DE]"
+                          />
+                        )}
+                        <span className="text-left">{add.name}</span>
                       </div>
                       <span className="font-bold">+R${add.price}</span>
                     </button>
