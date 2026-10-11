@@ -65,12 +65,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     || uniqueProducts.find((p) => p.name === category || p.category === category)
     || uniqueProducts[0];
 
-  // Dynamic options strictly derived from the selected product or configured cake batters
+  // Explicit empty lists mean that the corresponding step was removed in the panel.
   const availableBatters: CakeBatter[] = React.useMemo(() => {
-    // 1. Se o produto selecionado possui massas próprias ativas cadastradas
-    if (selectedProductObj?.batters && selectedProductObj.batters.length > 0) {
-      const activeBatters = selectedProductObj.batters.filter(b => b.active);
-      if (activeBatters.length > 0) return activeBatters;
+    if (Array.isArray(selectedProductObj?.batters)) {
+      return selectedProductObj.batters.filter(b => b.active);
     }
 
     // 2. Se for um produto de bolo, festa ou personalizado, busca todas as massas configuradas no painel de gestão
@@ -81,19 +79,19 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     return cakeProduct?.batters ? cakeProduct.batters.filter(b => b.active) : [];
   }, [selectedProductObj, products]);
 
-  const availableFlavors: Flavor[] = (selectedProductObj?.flavors && selectedProductObj.flavors.length > 0)
+  const availableFlavors: Flavor[] = Array.isArray(selectedProductObj?.flavors)
     ? selectedProductObj.flavors.filter(f => f.active)
     : flavors.filter(f => f.active);
 
-  const availablePackaging: PackagingOption[] = (selectedProductObj?.packaging && selectedProductObj.packaging.length > 0)
+  const availablePackaging: PackagingOption[] = Array.isArray(selectedProductObj?.packaging)
     ? selectedProductObj.packaging.filter(p => p.active)
     : packaging.filter(p => p.active);
 
-  const availableAddons: Addon[] = (selectedProductObj?.addons && selectedProductObj.addons.length > 0)
+  const availableAddons: Addon[] = Array.isArray(selectedProductObj?.addons)
     ? selectedProductObj.addons.filter(a => a.active)
     : addons.filter(a => a.active);
 
-  const availableVariations: ProductVariation[] = (selectedProductObj?.variations && selectedProductObj.variations.length > 0)
+  const availableVariations: ProductVariation[] = Array.isArray(selectedProductObj?.variations)
     ? selectedProductObj.variations.filter(v => v.active)
     : [];
 
@@ -126,10 +124,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   // - Bentô Cake: 1 massa obrigatoriamente, 1 recheio obrigatoriamente, min 1 adicional obrigatoriamente
   // - Bolo Decorado: 1 massa obrigatoriamente, 2 recheios obrigatoriamente, min 1 adicional obrigatoriamente
   // - Salgados Artesanais: recheio/sabor em caixa de seleção obrigatório, sem limite de quantidade
-  const requiresBatter = !isSalgados && (selectedProductObj?.requires_batter ?? (isCake && availableBatters.length > 0));
-  const requires2Flavors = !isSalgados && (selectedProductObj?.min_flavors !== undefined
-    ? selectedProductObj.min_flavors === 2
-    : (isDecoratedCake && !isBento && availableFlavors.length >= 2));
+  const requiresBatter = !isSalgados && (selectedProductObj?.requires_batter ?? (isCake && availableBatters.length > 0)) && availableBatters.length > 0;
+  const requiredFlavorCount = !isSalgados
+    ? (selectedProductObj?.min_flavors ?? (isDecoratedCake && !isBento && availableFlavors.length >= 2 ? 2 : availableFlavors.length > 0 ? 1 : 0))
+    : 0;
+  const requiresFlavors = requiredFlavorCount > 0 && availableFlavors.length > 0;
+  const requires2Flavors = requiresFlavors && requiredFlavorCount >= 2;
   const minAddons = selectedProductObj?.min_addons ?? (isCake ? 1 : 0);
 
   // Synchronize options when category changes or modal opens
@@ -169,7 +169,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     setValidationError(null);
 
     // 1. Batter sync (somente se aplicável)
-    if (availableBatters.length > 0 && !isSalgados) {
+    if (requiresBatter) {
       const batterExists = availableBatters.some(b => b.name === batter);
       if (!batterExists) {
         setBatter(availableBatters[0]?.name || '');
@@ -189,7 +189,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           return availableFlavors.slice(0, 2).map(f => f.name);
         });
       }
-    } else if (availableFlavors.length > 0) {
+    } else if (requiresFlavors) {
       const flav1Exists = availableFlavors.some(f => f.name === flavor1);
       if (!flav1Exists) {
         setFlavor1(initialFlavor || availableFlavors[0]?.name || '');
@@ -210,6 +210,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       if (!packExists) {
         setSelectedPack(availablePackaging[0]?.name || '');
       }
+    } else {
+      setSelectedPack('');
     }
 
     // 4. Variations sync
@@ -218,15 +220,16 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       if (!varExists) {
         setServings(availableVariations[0]?.name || '');
       }
-    } else {
-      if (!servings) setServings('15 a 20 fatias');
-    }
+    } else setServings('');
 
-    // 5. Addons default requirement for cakes (ensure at least 1 is pre-selected if required)
-    if (minAddons > 0 && selectedAddons.length === 0 && availableAddons.length > 0) {
-      setSelectedAddons([availableAddons[0].name]);
-    }
-  }, [category, isOpen, requires2Flavors, minAddons, isSalgados]);
+    // 5. Remove selections that no longer exist and set the required default.
+    setSelectedAddons((previous) => {
+      const valid = previous.filter((name) => availableAddons.some((addon) => addon.name === name));
+      return minAddons > 0 && valid.length === 0 && availableAddons.length > 0
+        ? [availableAddons[0].name]
+        : valid;
+    });
+  }, [category, isOpen, requiresBatter, requiresFlavors, requires2Flavors, minAddons, isSalgados, availableBatters, availableFlavors, availablePackaging, availableVariations, availableAddons]);
 
   if (!isOpen) return null;
 
@@ -301,8 +304,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         return;
       }
 
-      if (requires2Flavors && (!flavor1 || !flavor2 || flavor1.trim() === '' || flavor2.trim() === '')) {
-        setValidationError('Por favor, selecione obrigatoriamente os 2 tipos de recheio para o seu bolo decorado.');
+      if (requiresFlavors && (!flavor1 || (requires2Flavors && !flavor2) || flavor1.trim() === '' || (requires2Flavors && flavor2.trim() === ''))) {
+        setValidationError(`Por favor, selecione obrigatoriamente ${requires2Flavors ? 'os 2 tipos de recheio' : 'o recheio'}.`);
         return;
       }
     }
@@ -322,7 +325,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         : requires2Flavors 
           ? `🍓 *1º Recheio (Obrigatório):* ${flavor1} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2)})` : '(Incluso)'}\n` +
             `🍫 *2º Recheio (Obrigatório):* ${flavor2} ${flavor2Extra > 0 ? `(+R$ ${flavor2Extra.toFixed(2)})` : '(Incluso)'}\n`
-          : (flavor1 ? `🍓 *Recheio / Sabor:* ${flavor1 || 'Padrão'} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2)})` : ''}\n` : '')
+          : (requiresFlavors && flavor1 ? `🍓 *Recheio / Sabor:* ${flavor1 || 'Padrão'} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2)})` : ''}\n` : '')
       ) +
       `📦 *Embalagem:* ${selectedPack || 'Padrão'} ${packagingExtra > 0 ? `(+R$ ${packagingExtra.toFixed(2)})` : '(Inclusa)'}\n` +
       (selectedAddons.length > 0 ? `✨ *Adicionais:* ${selectedAddons.join(', ')} (+R$ ${addonsExtra.toFixed(2)})\n` : '') +
@@ -340,7 +343,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       product_name: category,
       batter: !isSalgados ? batter : undefined,
       quantity: servings,
-      flavors: isSalgados ? selectedSalgadoFlavors : (requires2Flavors ? [flavor1, flavor2] : [flavor1]),
+      flavors: isSalgados ? selectedSalgadoFlavors : (requires2Flavors ? [flavor1, flavor2] : requiresFlavors ? [flavor1] : []),
       packaging: selectedPack,
       addons: selectedAddons,
       date: date || 'A combinar',
@@ -438,7 +441,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           </div>
 
           {/* 2. Tipo de Massa do Bolo (OBRIGATÓRIO SOMENTE PARA BOLOS) */}
-          {!isSalgados && availableBatters.length > 0 && (
+          {requiresBatter && (
             <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-2">
               <label className="block text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
@@ -553,7 +556,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             </div>
           ) : (
             /* CASO B: BOLOS, KITS E OUTROS PRODUTOS */
-            availableFlavors.length > 0 && (
+            requiresFlavors && (
               <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-3">
                 <div className="flex items-center justify-between">
                   <label className="block text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center gap-1.5">
@@ -630,40 +633,26 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
           {/* 4. Tamanho / Variação ou Fatias */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {availableVariations.length > 0 && (
             <div>
               <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider">
                 {isSalgados ? '3. Quantidade / Cento' : '4. Tamanho / Opção'}
               </label>
-              {availableVariations.length > 0 ? (
-                <select
-                  value={servings}
-                  onChange={(e) => setServings(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-[#FAD0DE] bg-[#FFFDFC] text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] cursor-pointer"
-                >
-                  {availableVariations.map((v) => (
-                    <option key={v.id} value={v.name}>
-                      {v.name} (R$ {v.price.toFixed(2)})
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <select
-                  value={servings}
-                  onChange={(e) => setServings(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-[#FAD0DE] bg-[#FFFDFC] text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] cursor-pointer"
-                >
-                  <option value="Bentô (2 a 4 pessoas)">Bentô Cake (2 a 4 pessoas)</option>
-                  <option value="15 fatias (Pequeno)">15 fatias (Pequeno)</option>
-                  <option value="20 a 25 fatias (Médio)">20 a 25 fatias (Médio)</option>
-                  <option value="30 a 40 fatias (Grande)">30 a 40 fatias (Grande)</option>
-                  <option value="Kit 10 pessoas">Kit Festa 10 pessoas</option>
-                  <option value="Kit 20 pessoas">Kit Festa 20 pessoas</option>
-                  <option value="Kit 30+ pessoas">Kit Festa 30+ pessoas</option>
-                </select>
-              )}
+              <select
+                value={servings}
+                onChange={(e) => setServings(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-xl border border-[#FAD0DE] bg-[#FFFDFC] text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] cursor-pointer"
+              >
+                {availableVariations.map((v) => (
+                  <option key={v.id} value={v.name}>
+                    {v.name} (R$ {v.price.toFixed(2)})
+                  </option>
+                ))}
+              </select>
             </div>
+            )}
 
-            <div>
+            <div className={availableVariations.length > 0 ? '' : 'sm:col-span-2'}>
               <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider">
                 {isSalgados ? '4. Data desejada' : '5. Data desejada'}
               </label>
@@ -958,7 +947,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   </div>
                 </>
               ) : (
-                flavor1 && (
+                requiresFlavors && flavor1 && (
                   <div className="flex justify-between">
                     <span>• Recheio ({flavor1}):</span>
                     <span className="font-semibold text-[#3D1E26]">
@@ -977,12 +966,14 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 </div>
               )}
 
-              <div className="flex justify-between">
-                <span>• Adicionais ({selectedAddons.length} selecionado{selectedAddons.length !== 1 ? 's' : ''}):</span>
-                <span className="font-semibold text-[#3D1E26]">
-                  {addonsExtra > 0 ? `+ R$ ${addonsExtra.toFixed(2)}` : 'R$ 0,00'}
-                </span>
-              </div>
+              {availableAddons.length > 0 && (
+                <div className="flex justify-between">
+                  <span>• Adicionais ({selectedAddons.length} selecionado{selectedAddons.length !== 1 ? 's' : ''}):</span>
+                  <span className="font-semibold text-[#3D1E26]">
+                    {addonsExtra > 0 ? `+ R$ ${addonsExtra.toFixed(2)}` : 'R$ 0,00'}
+                  </span>
+                </div>
+              )}
 
               <div className="flex justify-between text-[11px] pt-1 text-[#8C5D6C]">
                 <span>• Modalidade de Entrega:</span>

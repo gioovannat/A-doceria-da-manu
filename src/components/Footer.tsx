@@ -81,8 +81,8 @@ export const Footer: React.FC<FooterProps> = ({ data }) => {
               Mais Pedidos
             </h4>
             <ul className="space-y-2.5 text-xs text-[#734A56]">
-              {currentData.specialties.slice(0, 6).map((sp) => (
-                <li key={sp.id}>{sp.title}</li>
+              {currentData.products.filter((product) => product.active).sort((a, b) => a.sort_order - b.sort_order).slice(0, 6).map((product) => (
+                <li key={product.id}>{product.name}</li>
               ))}
             </ul>
           </div>

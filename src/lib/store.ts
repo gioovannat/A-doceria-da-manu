@@ -48,8 +48,8 @@ class StoreService {
         const parsed = JSON.parse(stored);
         
         // 1. Process specialties: a category can contain many catalog items.
-        const rawSpecialties: any[] = parsed.specialties && parsed.specialties.length > 0 
-          ? parsed.specialties 
+        const rawSpecialties: any[] = Array.isArray(parsed.specialties)
+          ? parsed.specialties
           : fallback.specialties;
         
         const dedupedSpecialties: any[] = [];
@@ -63,16 +63,16 @@ class StoreService {
             dedupedSpecialties.push(spec);
           }
         }
-        for (const fs of fallback.specialties) {
-          const exists = dedupedSpecialties.some((s) => s.id === fs.id || (s.slug && fs.slug && s.slug === fs.slug));
-          if (!exists) {
-            dedupedSpecialties.push(fs);
+        if (!Array.isArray(parsed.specialties)) {
+          for (const fs of fallback.specialties) {
+            const exists = dedupedSpecialties.some((s) => s.id === fs.id || (s.slug && fs.slug && s.slug === fs.slug));
+            if (!exists) dedupedSpecialties.push(fs);
           }
         }
 
         // 2. Products are unique by identity, never by category: a category may
         // contain several products (for example, Petit and Bolo Redondo).
-        const rawProducts: any[] = parsed.products && parsed.products.length > 0
+        const rawProducts: any[] = Array.isArray(parsed.products)
           ? parsed.products
           : fallback.products;
 
@@ -91,11 +91,11 @@ class StoreService {
 
           const fullProd = {
             ...prod,
-            batters: prod.batters && prod.batters.length > 0 ? prod.batters : (fallbackProd?.batters || []),
-            variations: prod.variations && prod.variations.length > 0 ? prod.variations : (fallbackProd?.variations || []),
-            flavors: prod.flavors && prod.flavors.length > 0 ? prod.flavors : (fallbackProd?.flavors || []),
-            packaging: prod.packaging && prod.packaging.length > 0 ? prod.packaging : (fallbackProd?.packaging || []),
-            addons: prod.addons && prod.addons.length > 0 ? prod.addons : (fallbackProd?.addons || []),
+            batters: Array.isArray(prod.batters) ? prod.batters : (fallbackProd?.batters || []),
+            variations: Array.isArray(prod.variations) ? prod.variations : (fallbackProd?.variations || []),
+            flavors: Array.isArray(prod.flavors) ? prod.flavors : (fallbackProd?.flavors || []),
+            packaging: Array.isArray(prod.packaging) ? prod.packaging : (fallbackProd?.packaging || []),
+            addons: Array.isArray(prod.addons) ? prod.addons : (fallbackProd?.addons || []),
           };
 
           if (existingIndex >= 0) {
@@ -103,24 +103,23 @@ class StoreService {
             dedupedProducts[existingIndex] = {
               ...ex,
               ...fullProd,
-              batters: (prod.batters && prod.batters.length > 0) ? prod.batters : (ex.batters && ex.batters.length > 0 ? ex.batters : fullProd.batters),
-              variations: (prod.variations && prod.variations.length > 0) ? prod.variations : (ex.variations && ex.variations.length > 0 ? ex.variations : fullProd.variations),
-              flavors: (prod.flavors && prod.flavors.length > 0) ? prod.flavors : (ex.flavors && ex.flavors.length > 0 ? ex.flavors : fullProd.flavors),
-              packaging: (prod.packaging && prod.packaging.length > 0) ? prod.packaging : (ex.packaging && ex.packaging.length > 0 ? ex.packaging : fullProd.packaging),
-              addons: (prod.addons && prod.addons.length > 0) ? prod.addons : (ex.addons && ex.addons.length > 0 ? ex.addons : fullProd.addons),
+              batters: Array.isArray(prod.batters) ? prod.batters : (ex.batters || fullProd.batters),
+              variations: Array.isArray(prod.variations) ? prod.variations : (ex.variations || fullProd.variations),
+              flavors: Array.isArray(prod.flavors) ? prod.flavors : (ex.flavors || fullProd.flavors),
+              packaging: Array.isArray(prod.packaging) ? prod.packaging : (ex.packaging || fullProd.packaging),
+              addons: Array.isArray(prod.addons) ? prod.addons : (ex.addons || fullProd.addons),
             };
           } else {
             dedupedProducts.push(fullProd);
           }
         }
 
-        // Ensure all fallback products are represented without collapsing categories.
-        for (const fp of fallback.products) {
-          const exists = dedupedProducts.some(
-            (p) => p.id === fp.id || (p.slug && fp.slug && p.slug === fp.slug)
-          );
-          if (!exists) {
-            dedupedProducts.push(fp);
+        if (!Array.isArray(parsed.products)) {
+          for (const fp of fallback.products) {
+            const exists = dedupedProducts.some(
+              (p) => p.id === fp.id || (p.slug && fp.slug && p.slug === fp.slug)
+            );
+            if (!exists) dedupedProducts.push(fp);
           }
         }
 

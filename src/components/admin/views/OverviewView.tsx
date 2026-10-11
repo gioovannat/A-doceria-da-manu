@@ -241,17 +241,17 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             </button>
 
             <button
-              onClick={() => onNavigateTab('especialidades')}
+              onClick={() => onNavigateTab('produtos')}
               className="p-5 rounded-2xl bg-white border border-[#FAD0DE] hover:border-[#D81E5B] hover:shadow-md transition-all text-left group cursor-pointer"
             >
               <div className="w-10 h-10 rounded-xl bg-[#FFF0F4] border border-[#FAD0DE] flex items-center justify-center text-[#D81E5B] mb-3 group-hover:scale-105 transition-transform">
                 <Layers className="w-5 h-5" />
               </div>
               <h4 className="text-sm font-bold text-[#3D1E26] group-hover:text-[#D81E5B] transition-colors">
-                Especialidades
+                Destaques do Cardápio
               </h4>
               <p className="text-xs text-[#7A505D] mt-1">
-                Categorias em destaque, porções e fotos dos cartões.
+                Produtos em destaque, porções e fotos dos cartões.
               </p>
             </button>
 

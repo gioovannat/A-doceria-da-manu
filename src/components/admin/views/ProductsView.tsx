@@ -261,6 +261,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
     onChange((prev) => ({
       ...prev,
       products: prev.products.filter((p) => p.id !== productToDelete.id),
+      specialties: prev.specialties.filter((s) => s.id !== productToDelete.id && s.slug !== productToDelete.slug),
     }));
     success('Produto excluído com sucesso!');
     setProductToDelete(null);
@@ -586,17 +587,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                     </p>
 
                     {/* Regras obrigatórias do produto */}
-                    {(prod.category === 'bolos' || prod.category === 'bento' || prod.requires_batter || (prod.min_flavors && prod.min_flavors > 0)) && (
+                    {(prod.requires_batter || (prod.min_flavors && prod.min_flavors > 0) || (prod.min_addons && prod.min_addons > 0)) && (
                       <div className="flex flex-wrap gap-1.5 mb-3.5">
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]">
-                          <Check className="w-3 h-3 text-[#D81E5B]" /> Massa Obrigatória
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]">
-                          <Check className="w-3 h-3 text-[#D81E5B]" /> {prod.min_flavors ?? (prod.category === 'bento' ? 1 : 2)} {(prod.min_flavors ?? (prod.category === 'bento' ? 1 : 2)) === 1 ? 'Recheio Obrigatório' : 'Recheios Obrigatórios'}
-                        </span>
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]">
-                          <Check className="w-3 h-3 text-[#D81E5B]" /> Mín. {prod.min_addons || 1} Adicional
-                        </span>
+                        {prod.requires_batter && <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]"><Check className="w-3 h-3 text-[#D81E5B]" /> Massa Obrigatória</span>}
+                        {(prod.min_flavors ?? 0) > 0 && <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]"><Check className="w-3 h-3 text-[#D81E5B]" /> {prod.min_flavors} {prod.min_flavors === 1 ? 'Recheio Obrigatório' : 'Recheios Obrigatórios'}</span>}
+                        {(prod.min_addons ?? 0) > 0 && <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-[#FFF0F4] text-[#B8134B] px-2 py-0.5 rounded-md border border-[#FAD0DE]"><Check className="w-3 h-3 text-[#D81E5B]" /> Mín. {prod.min_addons} Adicional</span>}
                       </div>
                     )}
 
@@ -904,9 +899,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                         }}
                         className="w-full text-xs p-2 rounded-lg border border-[#FAD0DE] bg-[#FFFDFC]"
                       >
+                        <option value="0">Nenhum recheio</option>
                         <option value="1">1 Recheio Obrigatório</option>
                         <option value="2">2 Recheios Obrigatórios</option>
-                        <option value="3">3 Recheios Obrigatórios</option>
                       </select>
                       <span className="text-[10px] text-[#8C5D6C] block">Ex: 2 tipos de recheio para bolo decorado</span>
                     </div>

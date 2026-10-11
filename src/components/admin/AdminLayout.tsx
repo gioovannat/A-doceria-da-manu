@@ -12,7 +12,6 @@ import {
   LayoutDashboard, 
   Sparkles, 
   Cake, 
-  Layers, 
   GraduationCap, 
   UserCheck, 
   Clock, 
@@ -34,7 +33,6 @@ import {
 import { OverviewView } from './views/OverviewView';
 import { HomeEditorView } from './views/HomeEditorView';
 import { ProductsView } from './views/ProductsView';
-import { SpecialtiesView } from './views/SpecialtiesView';
 import { CoursesView } from './views/CoursesView';
 import { AboutView } from './views/AboutView';
 import { HoursView } from './views/HoursView';
@@ -114,8 +112,7 @@ export const AdminLayout: React.FC = () => {
   const navItems = [
     { id: 'visao-geral', label: 'Visão Geral', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'inicio', label: 'Editar Início', icon: <Sparkles className="w-4 h-4" /> },
-    { id: 'produtos', label: 'Produtos & Cardápio', icon: <Cake className="w-4 h-4" /> },
-    { id: 'especialidades', label: 'Especialidades', icon: <Layers className="w-4 h-4" /> },
+    { id: 'produtos', label: 'Produtos, Cardápio & Especialidades', icon: <Cake className="w-4 h-4" /> },
     { id: 'cursos', label: 'Cursos & Gestão', icon: <GraduationCap className="w-4 h-4" /> },
     { id: 'sobre', label: 'Sobre a Manu', icon: <UserCheck className="w-4 h-4" /> },
     { id: 'horarios', label: 'Horários & Retiradas', icon: <Clock className="w-4 h-4" /> },
@@ -342,10 +339,6 @@ export const AdminLayout: React.FC = () => {
             <ProductsView data={draftData} onChange={handleUpdateDraft} />
           )}
 
-          {activeTab === 'especialidades' && (
-            <SpecialtiesView data={draftData} onChange={handleUpdateDraft} />
-          )}
-
           {activeTab === 'cursos' && (
             <CoursesView data={draftData} onChange={handleUpdateDraft} />
           )}
@@ -382,7 +375,6 @@ export const AdminLayout: React.FC = () => {
         {[
           { id: 'visao-geral', label: 'Início', icon: <LayoutDashboard className="w-5 h-5" /> },
           { id: 'produtos', label: 'Catálogo', icon: <Cake className="w-5 h-5" /> },
-          { id: 'especialidades', label: 'Espec.', icon: <Layers className="w-5 h-5" /> },
           { id: 'pedidos', label: 'Pedidos', icon: <MessageSquare className="w-5 h-5" /> },
           { id: 'configuracoes', label: 'Ajustes', icon: <Settings className="w-5 h-5" /> },
         ].map((item) => (
