@@ -831,9 +831,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               <div className="space-y-1 text-xs">
                 <div className="font-bold text-[#3D1E26] flex items-center gap-2">
                   <span>Retirada no Ateliê da Manu</span>
-                  <span className="text-[10px] font-semibold text-[#D81E5B] bg-[#FFF0F4] px-1.5 py-0.5 rounded-md">
-                    Paço do Lumiar
-                  </span>
                 </div>
                 <p className="text-[11px] text-[#5E3B46] leading-relaxed">
                   <strong>Observação importante:</strong> O cliente pode vir buscar pessoalmente no Ateliê ou solicitar e pagar o envio por conta própria via aplicativo (<span className="text-[#D81E5B] font-semibold">Uber Flash / 99 Entregas</span>).
