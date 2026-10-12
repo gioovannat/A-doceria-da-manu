@@ -15,6 +15,9 @@ class StoreService {
   private errorMessage: string | null = null;
   private hasUnsavedDraft: boolean = false;
   private hasStaffDraftSubscription = false;
+  private writeQueue: Promise<void> = Promise.resolve();
+  private autoPublishTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingAutoPublish: { data: AppDatabase; authorName: string } | null = null;
 
   constructor() {
     this.publishedData = this.loadFromStorage(PUBLISHED_STORAGE_KEY, INITIAL_DATABASE);
@@ -175,6 +178,73 @@ class StoreService {
     }
   }
 
+  private cloneData(data: AppDatabase): AppDatabase {
+    return JSON.parse(JSON.stringify(data));
+  }
+
+  /**
+   * Serializes writes made by the same administrator. This prevents an older
+   * request from finishing after a newer edit and replacing it in Supabase.
+   */
+  private queueWrite(task: () => Promise<void>): Promise<void> {
+    const next = this.writeQueue.catch(() => undefined).then(task);
+    this.writeQueue = next;
+    return next;
+  }
+
+  private isOlderVersion(incoming: AppDatabase, current: AppDatabase): boolean {
+    const incomingTime = Date.parse(incoming.updated_at || '');
+    const currentTime = Date.parse(current.updated_at || '');
+    return Number.isFinite(incomingTime) && Number.isFinite(currentTime) && incomingTime < currentTime;
+  }
+
+  private cancelPendingAutoPublish(): void {
+    if (this.autoPublishTimer) {
+      clearTimeout(this.autoPublishTimer);
+      this.autoPublishTimer = null;
+    }
+    this.pendingAutoPublish = null;
+  }
+
+  private async writePublishedAndDraft(data: AppDatabase, authorName: string): Promise<void> {
+    if (!isSupabaseConfigured || !supabase) return;
+    const client = supabase;
+
+    const now = data.updated_at || new Date().toISOString();
+    await this.queueWrite(async () => {
+      const { error: publishError } = await client.from('site_content').upsert({
+        id: 'published_main',
+        content: data,
+        published_at: data.published_at || now,
+        published_by: authorName,
+        updated_at: now,
+      });
+      if (publishError) throw publishError;
+
+      const { error: draftError } = await client.from('site_content').upsert({
+        id: 'draft_main',
+        content: data,
+        updated_at: now,
+      });
+      if (draftError) throw draftError;
+    });
+  }
+
+  private async flushAutoPublish(): Promise<void> {
+    const pending = this.pendingAutoPublish;
+    this.pendingAutoPublish = null;
+    this.autoPublishTimer = null;
+    if (!pending) return;
+
+    this.setSaveStatus('saving');
+    try {
+      await this.writePublishedAndDraft(pending.data, pending.authorName);
+      this.setSaveStatus('saved');
+    } catch (err: any) {
+      this.setSaveStatus('error', err.message || 'Falha ao sincronizar as alterações.');
+    }
+  }
+
   private async initSupabaseSync(): Promise<void> {
     if (!isSupabaseConfigured || !supabase) return;
     const client = supabase;
@@ -190,9 +260,12 @@ class StoreService {
         .maybeSingle();
 
       if (!data?.content) return;
-      this.draftData = data.content as AppDatabase;
-      this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
-      this.notify();
+      const incoming = data.content as AppDatabase;
+      if (!this.isOlderVersion(incoming, this.draftData)) {
+        this.draftData = incoming;
+        this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
+        this.notify();
+      }
 
       if (this.hasStaffDraftSubscription) return;
       this.hasStaffDraftSubscription = true;
@@ -200,6 +273,7 @@ class StoreService {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'site_content', filter: 'id=eq.draft_main' }, (payload) => {
           const changed = payload.new as { content?: AppDatabase };
           if (!changed.content) return;
+          if (this.isOlderVersion(changed.content, this.draftData)) return;
           this.draftData = changed.content;
           this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
           this.notify();
@@ -215,7 +289,10 @@ class StoreService {
         .single();
 
       if (!error && data?.content) {
-        this.publishedData = data.content as AppDatabase;
+        const incoming = data.content as AppDatabase;
+        if (!this.isOlderVersion(incoming, this.publishedData)) {
+          this.publishedData = incoming;
+        }
         this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
         this.notify();
       }
@@ -227,6 +304,7 @@ class StoreService {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'site_content', filter: 'id=eq.published_main' }, (payload) => {
           const changed = payload.new as { content?: AppDatabase };
           if (!changed.content) return;
+          if (this.isOlderVersion(changed.content, this.publishedData)) return;
           this.publishedData = changed.content;
           this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
           this.notify();
@@ -285,21 +363,25 @@ class StoreService {
    * Save changes to Draft without touching the public site
    */
   public async saveDraft(updater: (current: AppDatabase) => AppDatabase): Promise<boolean> {
+    this.cancelPendingAutoPublish();
     this.setSaveStatus('saving');
     try {
-      const updated = updater(JSON.parse(JSON.stringify(this.draftData)));
+      const updated = updater(this.cloneData(this.draftData));
       updated.updated_at = new Date().toISOString();
       this.draftData = updated;
       this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
 
       // If connected to Supabase, also sync to draft table
       if (isSupabaseConfigured && supabase) {
-        const { error } = await supabase.from('site_content').upsert({
-          id: 'draft_main',
-          content: this.draftData,
-          updated_at: new Date().toISOString(),
+        const client = supabase;
+        await this.queueWrite(async () => {
+          const { error } = await client.from('site_content').upsert({
+            id: 'draft_main',
+            content: this.draftData,
+            updated_at: this.draftData.updated_at,
+          });
+          if (error) throw error;
         });
-        if (error) throw error;
       }
 
       this.setSaveStatus('saved');
@@ -315,34 +397,22 @@ class StoreService {
    * Save and immediately publish so changes reflect on the visitor page
    */
   public async saveAndPublish(updater: (current: AppDatabase) => AppDatabase, authorName: string = 'Administrador'): Promise<boolean> {
+    this.cancelPendingAutoPublish();
+    this.setSaveStatus('saving');
     try {
       const now = new Date().toISOString();
-      const updated = updater(JSON.parse(JSON.stringify(this.draftData)));
+      const updated = updater(this.cloneData(this.draftData));
       updated.updated_at = now;
       updated.published_at = now;
       updated.published_by = authorName;
 
-      this.draftData = JSON.parse(JSON.stringify(updated));
-      this.publishedData = JSON.parse(JSON.stringify(updated));
+      this.draftData = this.cloneData(updated);
+      this.publishedData = this.cloneData(updated);
 
       this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
       this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
 
-      if (isSupabaseConfigured && supabase) {
-        const { error: publishError } = await supabase.from('site_content').upsert({
-          id: 'published_main',
-          content: this.publishedData,
-          published_at: now,
-          published_by: authorName,
-        });
-        if (publishError) throw publishError;
-        const { error: draftError } = await supabase.from('site_content').upsert({
-          id: 'draft_main',
-          content: this.draftData,
-          updated_at: now,
-        });
-        if (draftError) throw draftError;
-      }
+      await this.writePublishedAndDraft(this.publishedData, authorName);
 
       this.setSaveStatus('saved');
       this.notify();
@@ -354,42 +424,64 @@ class StoreService {
   }
 
   /**
+   * Applies an administrator edit immediately in the interface, then writes
+   * only the newest edit after a short pause. This keeps typing responsive and
+   * avoids sending a request for every key pressed.
+   */
+  public updateAndPublish(updater: (current: AppDatabase) => AppDatabase, authorName: string = 'Administrador'): void {
+    const now = new Date().toISOString();
+    const updated = updater(this.cloneData(this.draftData));
+    updated.updated_at = now;
+    updated.published_at = now;
+    updated.published_by = authorName;
+
+    this.draftData = this.cloneData(updated);
+    this.publishedData = this.cloneData(updated);
+    this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
+    this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
+
+    this.pendingAutoPublish = { data: this.cloneData(updated), authorName };
+    if (this.autoPublishTimer) clearTimeout(this.autoPublishTimer);
+    this.autoPublishTimer = setTimeout(() => {
+      void this.flushAutoPublish();
+    }, 400);
+  }
+
+  /**
    * Publish the current draft to the public live website
    */
   public async publishDraft(authorName: string = 'Administrador'): Promise<boolean> {
+    this.cancelPendingAutoPublish();
     this.setSaveStatus('saving');
     try {
       const now = new Date().toISOString();
       const publishedVersion: AppDatabase = {
-        ...JSON.parse(JSON.stringify(this.draftData)),
+        ...this.cloneData(this.draftData),
         published_at: now,
         published_by: authorName,
         updated_at: now,
       };
 
       this.publishedData = publishedVersion;
-      this.draftData = JSON.parse(JSON.stringify(publishedVersion));
+      this.draftData = this.cloneData(publishedVersion);
 
       this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
       this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
 
       // If Supabase is connected, write to published_main
       if (isSupabaseConfigured && supabase) {
-        const { error: publishError } = await supabase.from('site_content').upsert({
-          id: 'published_main',
-          content: this.publishedData,
-          published_at: now,
-          published_by: authorName,
-        });
-        if (publishError) throw publishError;
+        const client = supabase;
+        await this.writePublishedAndDraft(this.publishedData, authorName);
 
         // Also record publish history log
-        const { error: historyError } = await supabase.from('publish_history').insert({
-          published_by: authorName,
-          created_at: now,
-          summary: 'Publicação completa do catálogo e conteúdo do site',
+        await this.queueWrite(async () => {
+          const { error: historyError } = await client.from('publish_history').insert({
+            published_by: authorName,
+            created_at: now,
+            summary: 'Publicação completa do catálogo e conteúdo do site',
+          });
+          if (historyError) throw historyError;
         });
-        if (historyError) throw historyError;
       }
 
       this.setSaveStatus('saved');

@@ -66,12 +66,12 @@ export const AdminLayout: React.FC = () => {
     };
   }, []);
 
-  // Update working state and immediately sync to live site
+  // Update working state and sync the newest value to every device.
   const handleUpdateDraft = (updater: (prev: AppDatabase) => AppDatabase) => {
     setDraftData((prev) => {
       const updated = updater(prev);
       setHasUnsavedEdits(false);
-      store.saveAndPublish(() => updated, currentUser?.name || 'Administrador');
+      store.updateAndPublish(() => updated, currentUser?.name || 'Administrador');
       return updated;
     });
   };
