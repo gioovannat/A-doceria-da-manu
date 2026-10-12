@@ -1,54 +1,110 @@
 import { createClient } from '@supabase/supabase-js';
-import { createHash } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 
 export const config = { runtime: 'nodejs' };
 
-const WINDOW_MS = 10 * 60 * 1000;
-const MAX_REQUESTS_PER_WINDOW = 8;
+const WINDOW_SECONDS = 10 * 60;
+const MAX_REQUESTS_PER_WINDOW = 5;
+const MAX_BODY_BYTES = 12 * 1024;
+const RESPONSE_HEADERS = {
+  'Cache-Control': 'no-store',
+  'X-Content-Type-Options': 'nosniff',
+};
 
 function clientIp(request: Request): string {
-  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  return request.headers.get('x-vercel-forwarded-for')?.split(',')[0]?.trim()
+    || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || 'unknown';
+}
+
+function response(payload: Record<string, unknown>, status: number): Response {
+  return Response.json(payload, { status, headers: RESPONSE_HEADERS });
+}
+
+function sameSiteRequest(request: Request): boolean {
+  const origin = request.headers.get('origin');
+  if (!origin) return true;
+
+  try {
+    const requestOrigin = new URL(request.url).origin;
+    const configuredSiteUrl = process.env.SITE_URL || process.env.VITE_SITE_URL;
+    const configuredOrigin = configuredSiteUrl ? new URL(configuredSiteUrl).origin : null;
+    return origin === requestOrigin || origin === configuredOrigin;
+  } catch {
+    return false;
+  }
+}
+
+function text(value: unknown, maxLength: number): string | null {
+  return typeof value === 'string' ? value.trim().slice(0, maxLength) || null : null;
+}
+
+function textList(value: unknown, maxItems: number, maxLength: number): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim().slice(0, maxLength))
+    .filter(Boolean)
+    .slice(0, maxItems);
 }
 
 export default async function handler(request: Request): Promise<Response> {
-  if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405 });
+  if (request.method !== 'POST') return new Response('Method Not Allowed', { status: 405, headers: RESPONSE_HEADERS });
+  if (!sameSiteRequest(request)) return response({ error: 'Origem não permitida.' }, 403);
+  if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
+    return response({ error: 'Formato de solicitação inválido.' }, 415);
+  }
 
-  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const contentLength = Number(request.headers.get('content-length') || 0);
+  if (!Number.isFinite(contentLength) || contentLength > MAX_BODY_BYTES) {
+    return response({ error: 'Solicitação muito grande.' }, 413);
+  }
+
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !serviceRoleKey) return new Response('Service unavailable', { status: 503 });
+  if (!url || !serviceRoleKey) return response({ error: 'Serviço indisponível.' }, 503);
 
   try {
+    const rawPayload = await request.text();
+    if (new TextEncoder().encode(rawPayload).byteLength > MAX_BODY_BYTES) {
+      return response({ error: 'Solicitação muito grande.' }, 413);
+    }
+    const payload = JSON.parse(rawPayload);
+    const productName = text(payload?.product_name, 160);
+    const customerName = text(payload?.customer_name, 160);
+    const estimatedTotal = Number(payload?.estimated_total);
+    if (!productName || !customerName || !Number.isFinite(estimatedTotal) || estimatedTotal < 0 || estimatedTotal > 100000) {
+      return response({ error: 'Pedido inválido.' }, 400);
+    }
+
     const admin = createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-    const ipHash = createHash('sha256').update(clientIp(request)).digest('hex');
+    const ipHash = createHmac('sha256', serviceRoleKey).update(`orders:${clientIp(request)}`).digest('hex');
     const { data: permitted, error: limitError } = await admin.rpc('take_rate_limit', {
-      p_key: ipHash, p_window_seconds: WINDOW_MS / 1000, p_max_requests: MAX_REQUESTS_PER_WINDOW,
+      p_key: ipHash, p_window_seconds: WINDOW_SECONDS, p_max_requests: MAX_REQUESTS_PER_WINDOW,
     });
     if (limitError) throw limitError;
-    if (!permitted) return Response.json({ error: 'Muitas solicitações. Tente novamente em alguns minutos.' }, { status: 429 });
-    const payload = await request.json();
-    if (!payload || typeof payload.product_name !== 'string' || payload.product_name.length > 160) {
-      return Response.json({ error: 'Pedido inválido.' }, { status: 400 });
-    }
+    if (!permitted) return response({ error: 'Muitas solicitações. Tente novamente em alguns minutos.' }, 429);
+
     const safePayload = {
-      id: typeof payload.id === 'string' ? payload.id.slice(0, 80) : crypto.randomUUID(),
-      product_name: payload.product_name.slice(0, 160),
-      batter: typeof payload.batter === 'string' ? payload.batter.slice(0, 160) : null,
-      quantity: typeof payload.quantity === 'string' ? payload.quantity.slice(0, 100) : null,
-      flavors: Array.isArray(payload.flavors) ? payload.flavors.filter((item: unknown) => typeof item === 'string').slice(0, 10) : [],
-      packaging: typeof payload.packaging === 'string' ? payload.packaging.slice(0, 160) : null,
-      addons: Array.isArray(payload.addons) ? payload.addons.filter((item: unknown) => typeof item === 'string').slice(0, 10) : [],
-      date: typeof payload.date === 'string' ? payload.date.slice(0, 100) : null,
-      delivery_type: typeof payload.delivery_type === 'string' ? payload.delivery_type.slice(0, 160) : null,
-      location: typeof payload.location === 'string' ? payload.location.slice(0, 300) : null,
-      notes: typeof payload.notes === 'string' ? payload.notes.slice(0, 2000) : null,
-      inspiration_photo: typeof payload.inspiration_photo === 'string' ? payload.inspiration_photo.slice(0, 255) : null,
-      estimated_total: Number.isFinite(Number(payload.estimated_total)) ? Number(payload.estimated_total) : 0,
-      formatted_message: typeof payload.formatted_message === 'string' ? payload.formatted_message.slice(0, 5000) : null,
+      id: crypto.randomUUID(),
+      customer_name: customerName,
+      product_name: productName,
+      batter: text(payload.batter, 160),
+      quantity: text(payload.quantity, 100),
+      flavors: textList(payload.flavors, 10, 160),
+      packaging: text(payload.packaging, 160),
+      addons: textList(payload.addons, 10, 160),
+      date: text(payload.date, 100),
+      delivery_type: text(payload.delivery_type, 160),
+      location: text(payload.location, 300),
+      notes: text(payload.notes, 2000),
+      estimated_total: estimatedTotal,
+      formatted_message: text(payload.formatted_message, 5000),
     };
     const { error } = await admin.from('order_events').insert(safePayload);
     if (error) throw error;
-    return Response.json({ ok: true }, { status: 201 });
+    return response({ ok: true }, 201);
   } catch {
-    return Response.json({ error: 'Não foi possível registrar o pedido.' }, { status: 400 });
+    return response({ error: 'Não foi possível registrar o pedido.' }, 400);
   }
 }

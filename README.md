@@ -9,7 +9,9 @@ Site Vite/React com painel privado em `/atelier-gestao`, Supabase Auth, banco de
 - RLS restringe a área pública a `published_main`; perfis `admin` e `editor` controlam o conteúdo, e apenas `admin` administra perfis.
 - Imagens são enviadas para o bucket `site-media`; os arquivos têm nomes UUID, tamanho máximo de 5 MB e tipos JPG/PNG/WebP.
 - Publicações atualizam as páginas abertas via Supabase Realtime.
-- `POST /api/orders` valida a entrada e aplica limite persistente de 8 pedidos por IP (hash do IP) a cada 10 minutos antes de gravar com a chave de servidor.
+- `POST /api/orders` aceita somente JSON do mesmo site, valida e limita o corpo da requisição e aplica limite persistente de 5 pedidos por IP (HMAC do IP) a cada 10 minutos antes de gravar com a chave de servidor.
+- Funções de autorização do banco ficam em um esquema interno; os RPCs públicos não podem chamar verificações de papel nem o limitador.
+- Cabeçalhos de segurança, Content Security Policy e HTTPS estrito são enviados pela Vercel. O visitante recebe um aviso de consentimento para cookies e armazenamento local essenciais.
 
 ## Configuração do Supabase
 
@@ -31,7 +33,7 @@ on conflict (id) do update set role = excluded.role, name = excluded.name;
 ## Deploy Vercel
 
 1. Envie o repositório ao GitHub sem arquivos `.env*` reais.
-2. Importe-o na Vercel e configure `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_ADMIN_BASE_PATH`, `VITE_SITE_URL`, `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`.
+2. Importe-o na Vercel e configure `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_ADMIN_BASE_PATH`, `VITE_SITE_URL`, `SITE_URL`, `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`.
 3. Habilite a proteção/rate limiting da Vercel para `/api/orders` como segunda camada contra abuso.
 
 O Vercel constrói a SPA e atende a Function em `api/orders.ts`; `vercel.json` preserva os rewrites para as rotas do painel.

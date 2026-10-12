@@ -9,6 +9,7 @@ import { FAQSection } from './components/FAQSection';
 import { Footer } from './components/Footer';
 import { OrderModal } from './components/OrderModal';
 import { FloatingWhatsApp } from './components/FloatingWhatsApp';
+import { CookieConsent } from './components/CookieConsent';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { AdminLogin } from './components/admin/AdminLogin';
 import { ToastProvider } from './components/ui/Toast';
@@ -142,6 +143,9 @@ export default function App() {
 
         {/* Floating WhatsApp Action Button */}
         <FloatingWhatsApp />
+
+        {/* Aviso de consentimento para tecnologias essenciais */}
+        <CookieConsent />
       </div>
     </ToastProvider>
   );
