@@ -61,6 +61,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [inspirationPhoto, setInspirationPhoto] = useState<string | null>(null);
   const [inspirationPhotoPreview, setInspirationPhotoPreview] = useState<string | null>(null);
   const [inspirationPhotoName, setInspirationPhotoName] = useState<string>('');
+  const [inspirationPhotoFile, setInspirationPhotoFile] = useState<File | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [acceptedPaymentTerms, setAcceptedPaymentTerms] = useState(false);
   const [deliveryType] = useState<'retirada'>('retirada');
@@ -296,6 +297,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       setInspirationPhotoPreview(URL.createObjectURL(file));
       setInspirationPhoto(null);
       setInspirationPhotoName(file.name);
+      setInspirationPhotoFile(file);
       setIsUploadingPhoto(true);
       setValidationError(null);
       const imageUrl = await uploadInspirationImage(file);
@@ -314,9 +316,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     setInspirationPhoto(null);
     setInspirationPhotoPreview(null);
     setInspirationPhotoName('');
+    setInspirationPhotoFile(null);
   };
 
-  const handleSendWhatsApp = (e: React.FormEvent) => {
+  const handleSendWhatsApp = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
 
@@ -419,6 +422,30 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       estimated_total: estimatedTotal,
       formatted_message: formattedMessage,
     });
+
+    // Links wa.me only open a conversation with text. When the browser supports
+    // file sharing, the native share sheet sends the actual image file to WhatsApp.
+    const canSharePhoto = Boolean(
+      inspirationPhotoFile
+      && typeof navigator.share === 'function'
+      && typeof navigator.canShare === 'function'
+      && navigator.canShare({ files: [inspirationPhotoFile] }),
+    );
+
+    if (canSharePhoto && inspirationPhotoFile) {
+      try {
+        await navigator.share({
+          title: 'Pedido — A Doceria da Manu',
+          text: formattedMessage,
+          files: [inspirationPhotoFile],
+        });
+        onClose();
+        return;
+      } catch (error) {
+        // Canceling the share sheet is intentional: keep the order open for retry.
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+      }
+    }
 
     const targetUrl = `https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(formattedMessage)}`;
     window.open(targetUrl, '_blank');
