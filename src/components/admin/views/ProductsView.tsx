@@ -953,7 +953,8 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                     value={(editingProduct.card_highlights || []).join('\n')}
                     onChange={(e) => setEditingProduct({
                       ...editingProduct,
-                      card_highlights: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean),
+                      // Mantém a linha vazia enquanto a pessoa digita para que Enter abra a próxima linha.
+                      card_highlights: e.target.value.split('\n').map((item) => item.trim()),
                     })}
                     placeholder={'Ex: Feito sob medida\nIngredientes frescos\nDecoração personalizada'}
                   />
