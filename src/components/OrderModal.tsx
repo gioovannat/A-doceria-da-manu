@@ -11,6 +11,9 @@ interface OrderModalProps {
   data?: AppDatabase;
 }
 
+const sortByName = <T extends { name: string }>(items: T[]): T[] =>
+  [...items].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
+
 export const OrderModal: React.FC<OrderModalProps> = ({
   isOpen,
   onClose,
@@ -39,7 +42,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       if (nameKey) seenNames.add(nameKey);
       result.push(p);
     }
-    return result;
+    return sortByName(result);
   }, [products]);
 
   const [category, setCategory] = useState<string>(() => {
@@ -69,7 +72,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   // Explicit empty lists mean that the corresponding step was removed in the panel.
   const availableBatters: CakeBatter[] = React.useMemo(() => {
     if (Array.isArray(selectedProductObj?.batters)) {
-      return selectedProductObj.batters.filter(b => b.active);
+      return sortByName(selectedProductObj.batters.filter(b => b.active));
     }
 
     // 2. Se for um produto de bolo, festa ou personalizado, busca todas as massas configuradas no painel de gestão
@@ -77,24 +80,24 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       (p) => (p.category === 'bolos' || p.category === 'bento' || p.requires_batter) && p.batters && p.batters.length > 0
     ) || products.find((p) => p.batters && p.batters.length > 0);
 
-    return cakeProduct?.batters ? cakeProduct.batters.filter(b => b.active) : [];
+    return cakeProduct?.batters ? sortByName(cakeProduct.batters.filter(b => b.active)) : [];
   }, [selectedProductObj, products]);
 
-  const availableFlavors: Flavor[] = Array.isArray(selectedProductObj?.flavors)
+  const availableFlavors: Flavor[] = sortByName(Array.isArray(selectedProductObj?.flavors)
     ? selectedProductObj.flavors.filter(f => f.active)
-    : flavors.filter(f => f.active);
+    : flavors.filter(f => f.active));
 
-  const availablePackaging: PackagingOption[] = Array.isArray(selectedProductObj?.packaging)
+  const availablePackaging: PackagingOption[] = sortByName(Array.isArray(selectedProductObj?.packaging)
     ? selectedProductObj.packaging.filter(p => p.active)
-    : packaging.filter(p => p.active);
+    : packaging.filter(p => p.active));
 
-  const availableAddons: Addon[] = Array.isArray(selectedProductObj?.addons)
+  const availableAddons: Addon[] = sortByName(Array.isArray(selectedProductObj?.addons)
     ? selectedProductObj.addons.filter(a => a.active)
-    : addons.filter(a => a.active);
+    : addons.filter(a => a.active));
 
-  const availableVariations: ProductVariation[] = Array.isArray(selectedProductObj?.variations)
+  const availableVariations: ProductVariation[] = sortByName(Array.isArray(selectedProductObj?.variations)
     ? selectedProductObj.variations.filter(v => v.active)
-    : [];
+    : []);
 
   // Rules determination
   const isBento = selectedProductObj?.category === 'bento';
