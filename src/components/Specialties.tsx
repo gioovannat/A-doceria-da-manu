@@ -54,7 +54,7 @@ export const Specialties: React.FC<SpecialtiesProps> = ({ onSelectItemForOrder, 
     })
     .sort((a, b) => a.sort_order - b.sort_order);
   const filteredItems = activeCategory === 'all'
-    ? activeSpecialties
+    ? [...activeSpecialties].sort((a, b) => a.title.localeCompare(b.title, 'pt-BR', { sensitivity: 'base' }))
     : activeSpecialties.filter((item) => item.category === activeCategory);
 
   return (
