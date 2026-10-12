@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, MessageCircle, Sparkles, Check, Calendar, Cake, Heart, Box, Gift, Layers, AlertCircle, Info, Camera, Image as ImageIcon, Trash2, Upload } from 'lucide-react';
 import { store } from '../lib/store';
-import { uploadSiteImage } from '../lib/media';
+import { uploadInspirationImage } from '../lib/media';
 import { AppDatabase, Product, Flavor, PackagingOption, Addon, ProductVariation, CakeBatter } from '../types';
 
 interface OrderModalProps {
@@ -56,6 +56,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [servings, setServings] = useState<string>('');
   const [date, setDate] = useState<string>('');
+  const [customerName, setCustomerName] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [inspirationPhoto, setInspirationPhoto] = useState<string | null>(null);
   const [inspirationPhotoName, setInspirationPhotoName] = useState<string>('');
@@ -292,7 +293,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     try {
       setIsUploadingPhoto(true);
       setValidationError(null);
-      const imageUrl = await uploadSiteImage(file);
+      const imageUrl = await uploadInspirationImage(file);
       setInspirationPhoto(imageUrl);
       setInspirationPhotoName(file.name);
     } catch (error) {
@@ -311,6 +312,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const handleSendWhatsApp = (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
+
+    if (!customerName.trim()) {
+      setValidationError('Informe seu nome para enviar o pedido.');
+      return;
+    }
 
     // Validações obrigatórias
     if (isSalgados) {
@@ -353,6 +359,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       `*NOVO PEDIDO — A DOCERIA DA MANU*\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `Olá, ${settings.short_name}! Gostaria de verificar a disponibilidade para este pedido.\n\n` +
+      `*CLIENTE*\n👤 ${customerName.trim()}\n\n` +
       `*PRODUTO*\n` +
       `🎂 ${category}\n` +
       `👥 Tamanho / porção: ${servings || 'Padrão'} (R$ ${basePrice.toFixed(2).replace('.', ',')})\n` +
@@ -385,6 +392,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
     // Record order in store
     store.recordOrder({
+      customer_name: customerName.trim(),
       product_name: category,
       batter: !isSalgados ? batter : undefined,
       quantity: servings,
@@ -452,6 +460,21 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               </div>
             </div>
           )}
+
+          <div>
+            <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider">
+              Seu nome <span className="text-[#D81E5B]">*</span>
+            </label>
+            <input
+              type="text"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              placeholder="Como podemos te chamar?"
+              required
+              maxLength={120}
+              className="w-full px-4 py-2.5 rounded-xl border border-[#FAD0DE] bg-[#FFFDFC] text-[#3D1E26] font-medium focus:outline-hidden focus:border-[#D81E5B] focus:ring-1 focus:ring-[#D81E5B]"
+            />
+          </div>
 
           {/* 1. Item Category (Produto) */}
           <div>
@@ -943,7 +966,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                         {isUploadingPhoto ? 'Enviando foto de referência...' : 'Clique aqui para selecionar uma foto de referência'}
                       </span>
                       <span className="text-[10px] text-[#9E7381]">
-                        Formatos aceitos: JPG, PNG ou WEBP (até 5MB)
+                        Formatos aceitos: JPG, PNG ou WEBP (até 4MB)
                       </span>
                     </div>
                   </label>
