@@ -37,7 +37,9 @@ class StoreService {
       if (event.key !== PUBLISHED_STORAGE_KEY || !event.newValue) return;
 
       try {
-        this.publishedData = this.loadFromStorage(PUBLISHED_STORAGE_KEY, INITIAL_DATABASE);
+        const incoming = this.loadFromStorage(PUBLISHED_STORAGE_KEY, INITIAL_DATABASE);
+        if (this.isOlderVersion(incoming, this.publishedData)) return;
+        this.publishedData = incoming;
         this.notify();
       } catch (error) {
         console.warn('Não foi possível atualizar o conteúdo publicado:', error);
@@ -261,11 +263,10 @@ class StoreService {
 
       if (!data?.content) return;
       const incoming = data.content as AppDatabase;
-      if (!this.isOlderVersion(incoming, this.draftData)) {
-        this.draftData = incoming;
-        this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
-        this.notify();
-      }
+      // The database is the source of truth when a device opens the admin.
+      this.draftData = incoming;
+      this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
+      this.notify();
 
       if (this.hasStaffDraftSubscription) return;
       this.hasStaffDraftSubscription = true;
@@ -290,9 +291,8 @@ class StoreService {
 
       if (!error && data?.content) {
         const incoming = data.content as AppDatabase;
-        if (!this.isOlderVersion(incoming, this.publishedData)) {
-          this.publishedData = incoming;
-        }
+        // A fresh database read must win over a browser's old local cache.
+        this.publishedData = incoming;
         this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
         this.notify();
       }
