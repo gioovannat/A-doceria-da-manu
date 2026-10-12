@@ -192,9 +192,15 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
   // Product handlers
   // ----------------------------------------------------------------------
   const handleOpenEditProduct = (prod: Product, initialTab: 'geral' | 'massas' | 'variacoes' | 'sabores' | 'embalagens' | 'adicionais' = 'geral') => {
+    const legacyCard = data.specialties.find(
+      (item) => item.id === prod.id || (item.slug && prod.slug && item.slug === prod.slug)
+    );
     // Ensure all sub-arrays exist
     setEditingProduct({
       ...prod,
+      card_subtitle: prod.card_subtitle || legacyCard?.subtitle || prod.short_description || prod.minimum_notice,
+      card_tag: prod.card_tag || legacyCard?.seoTag || '',
+      card_highlights: Array.isArray(prod.card_highlights) ? prod.card_highlights : (legacyCard?.highlights || []),
       batters: prod.batters || (prod.category === 'bolos' || prod.category === 'bento' ? [
         { id: 'bat-1', name: 'Massa Amanteigada de Baunilha', description: 'Estruturada, leve e aveludada', additional_price: 0, active: true },
         { id: 'bat-2', name: 'Massa de Chocolate 50% Cacau', description: 'Úmida e marcante com cacau nobre', additional_price: 0, active: true },
@@ -214,6 +220,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
       id: 'prod-' + Date.now(),
       name: '',
       slug: '',
+      card_subtitle: '',
+      card_tag: '',
+      card_highlights: [],
       full_description: '',
       category: 'bolos',
       main_image: data.home.hero_main_image,
@@ -275,6 +284,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
           title: editingProduct.name,
           slug: editingProduct.slug,
           description: editingProduct.full_description,
+          subtitle: editingProduct.card_subtitle || editingProduct.short_description || editingProduct.minimum_notice,
+          seoTag: editingProduct.card_tag || '',
+          highlights: editingProduct.card_highlights || [],
           image: editingProduct.main_image,
           badge: editingProduct.badge,
           startingPrice: editingProduct.starting_price_display,
@@ -915,6 +927,37 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                   }}
                   placeholder="Descreva a massa, os recheios, a cobertura e os detalhes especiais deste produto..."
                 />
+
+                <div className="p-4 rounded-2xl bg-[#FFF8FA] border border-[#FAD0DE] space-y-4">
+                  <div>
+                    <h5 className="text-xs font-bold text-[#3D1E26] uppercase tracking-wider">Informações exibidas no cartão público</h5>
+                    <p className="text-[11px] text-[#7A505D] mt-1">Edite exatamente os textos que aparecem no cardápio do visitante.</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <Input
+                      label="Subtítulo do Cartão"
+                      value={editingProduct.card_subtitle || ''}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, card_subtitle: e.target.value })}
+                      placeholder="Ex: Sob encomenda para festas"
+                    />
+                    <Input
+                      label="Etiqueta ao lado do rendimento"
+                      value={editingProduct.card_tag || ''}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, card_tag: e.target.value })}
+                      placeholder="Ex: Bolos decorados em Paço do Lumiar"
+                    />
+                  </div>
+                  <Textarea
+                    label="Destaques do Cartão (um por linha)"
+                    rows={3}
+                    value={(editingProduct.card_highlights || []).join('\n')}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      card_highlights: e.target.value.split('\n').map((item) => item.trim()).filter(Boolean),
+                    })}
+                    placeholder={'Ex: Feito sob medida\nIngredientes frescos\nDecoração personalizada'}
+                  />
+                </div>
 
                 <ImageUploader
                   label="Foto Principal do Produto"

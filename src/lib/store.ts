@@ -129,9 +129,14 @@ class StoreService {
             (p) => p.id === spec.id || (p.slug && spec.slug && p.slug === spec.slug)
           );
           if (prodIndex >= 0) {
-            if (!dedupedProducts[prodIndex].name) {
-              dedupedProducts[prodIndex].name = spec.title;
-            }
+            const product = dedupedProducts[prodIndex];
+            dedupedProducts[prodIndex] = {
+              ...product,
+              name: product.name || spec.title,
+              card_subtitle: product.card_subtitle || spec.subtitle,
+              card_tag: product.card_tag || spec.seoTag,
+              card_highlights: Array.isArray(product.card_highlights) ? product.card_highlights : (spec.highlights || []),
+            };
           }
         }
 

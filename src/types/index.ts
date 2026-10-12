@@ -130,6 +130,10 @@ export interface Product {
   id: string;
   name: string;
   slug: string;
+  /** Conteúdo exclusivo do cartão público do cardápio. */
+  card_subtitle?: string;
+  card_tag?: string;
+  card_highlights?: string[];
   short_description?: string;
   full_description: string;
   category: string;
