@@ -26,9 +26,11 @@ export async function uploadInspirationImage(file: File): Promise<string> {
   if (!ACCEPTED_TYPES.has(file.type)) throw new Error('Formato inválido. Envie JPG, PNG ou WEBP.');
   if (file.size > INSPIRATION_MAX_BYTES) throw new Error('A imagem deve ter no máximo 4 MB.');
 
-  const body = new FormData();
-  body.append('image', file, file.name);
-  const response = await fetch('/api/inspiration-image', { method: 'POST', body });
+  const response = await fetch('/api/inspiration-image', {
+    method: 'POST',
+    headers: { 'content-type': file.type },
+    body: file,
+  });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || typeof payload.url !== 'string') {
     throw new Error(payload.error || 'Não foi possível enviar a imagem de referência.');

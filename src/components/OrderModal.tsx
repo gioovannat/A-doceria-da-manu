@@ -59,6 +59,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [customerName, setCustomerName] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [inspirationPhoto, setInspirationPhoto] = useState<string | null>(null);
+  const [inspirationPhotoPreview, setInspirationPhotoPreview] = useState<string | null>(null);
   const [inspirationPhotoName, setInspirationPhotoName] = useState<string>('');
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [acceptedPaymentTerms, setAcceptedPaymentTerms] = useState(false);
@@ -291,11 +292,15 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     if (!file) return;
 
     try {
+      if (inspirationPhotoPreview?.startsWith('blob:')) URL.revokeObjectURL(inspirationPhotoPreview);
+      setInspirationPhotoPreview(URL.createObjectURL(file));
+      setInspirationPhoto(null);
+      setInspirationPhotoName(file.name);
       setIsUploadingPhoto(true);
       setValidationError(null);
       const imageUrl = await uploadInspirationImage(file);
       setInspirationPhoto(imageUrl);
-      setInspirationPhotoName(file.name);
+      setInspirationPhotoPreview(imageUrl);
     } catch (error) {
       setValidationError(error instanceof Error ? error.message : 'Não foi possível enviar a foto de inspiração.');
     } finally {
@@ -305,7 +310,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   };
 
   const handleRemovePhoto = () => {
+    if (inspirationPhotoPreview?.startsWith('blob:')) URL.revokeObjectURL(inspirationPhotoPreview);
     setInspirationPhoto(null);
+    setInspirationPhotoPreview(null);
     setInspirationPhotoName('');
   };
 
@@ -349,6 +356,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
     if (isUploadingPhoto) {
       setValidationError('Aguarde o envio da foto de inspiração terminar antes de continuar.');
+      return;
+    }
+
+    if (inspirationPhotoPreview && !inspirationPhoto) {
+      setValidationError('Não foi possível enviar a foto de referência. Remova-a ou tente anexá-la novamente antes de continuar.');
       return;
     }
 
@@ -918,11 +930,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                   Tem uma foto de bolo, paleta de cores ou decoração de referência? Anexe abaixo para a Manu analisar o seu modelo:
                 </p>
 
-                {inspirationPhoto ? (
+                {inspirationPhotoPreview ? (
                   <div className="p-3 rounded-xl bg-white border border-[#FAD0DE] flex items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-150">
                     <div className="flex items-center gap-3 min-w-0">
                       <img 
-                        src={inspirationPhoto} 
+                        src={inspirationPhotoPreview}
                         alt="Foto de inspiração" 
                         className="w-12 h-12 rounded-xl object-cover border border-[#FAD0DE] shrink-0" 
                       />
@@ -931,7 +943,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           {inspirationPhotoName || 'Foto de inspiração anexada'}
                         </p>
                         <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
-                          <Check className="w-3 h-3" /> Imagem pronta para visualização no WhatsApp
+                          <Check className="w-3 h-3" /> {isUploadingPhoto ? 'Preparando imagem para o WhatsApp...' : inspirationPhoto ? 'Imagem pronta para visualização no WhatsApp' : 'Envio da imagem não concluído'}
                         </p>
                       </div>
                     </div>
@@ -1110,7 +1122,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           <div className="pt-1">
             <button
               type="submit"
-              disabled={isUploadingPhoto}
+              disabled={isUploadingPhoto || Boolean(inspirationPhotoPreview && !inspirationPhoto)}
               className="w-full py-3.5 px-6 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2.5 cursor-pointer active:scale-98"
             >
               <MessageCircle className="w-5 h-5 fill-white" />

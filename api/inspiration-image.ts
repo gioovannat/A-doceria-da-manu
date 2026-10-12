@@ -24,9 +24,9 @@ export default async function handler(request: Request): Promise<Response> {
   if (!url || !serviceRoleKey) return new Response('Service unavailable', { status: 503 });
 
   try {
-    const formData = await request.formData();
-    const image = formData.get('image');
-    if (!image || typeof image === 'string' || !EXTENSIONS[image.type] || image.size > MAX_BYTES) {
+    const contentType = request.headers.get('content-type')?.split(';')[0] || '';
+    const contentLength = Number(request.headers.get('content-length') || 0);
+    if (!EXTENSIONS[contentType] || contentLength > MAX_BYTES) {
       return Response.json({ error: 'Envie uma imagem JPG, PNG ou WEBP de até 4 MB.' }, { status: 400 });
     }
 
@@ -40,9 +40,14 @@ export default async function handler(request: Request): Promise<Response> {
     if (limitError) throw limitError;
     if (!permitted) return Response.json({ error: 'Muitas imagens enviadas. Tente novamente em alguns minutos.' }, { status: 429 });
 
-    const objectPath = `inspirations/${randomUUID()}.${EXTENSIONS[image.type]}`;
-    const { error: uploadError } = await admin.storage.from('site-media').upload(objectPath, new Uint8Array(await image.arrayBuffer()), {
-      contentType: image.type,
+    const bytes = new Uint8Array(await request.arrayBuffer());
+    if (!bytes.byteLength || bytes.byteLength > MAX_BYTES) {
+      return Response.json({ error: 'Envie uma imagem JPG, PNG ou WEBP de até 4 MB.' }, { status: 400 });
+    }
+
+    const objectPath = `inspirations/${randomUUID()}.${EXTENSIONS[contentType]}`;
+    const { error: uploadError } = await admin.storage.from('site-media').upload(objectPath, bytes, {
+      contentType,
       cacheControl: '31536000',
       upsert: false,
     });
