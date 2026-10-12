@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, MessageCircle, Sparkles, Check, Calendar, Cake, Heart, Box, Gift, Layers, AlertCircle, Info, Camera, Image as ImageIcon, Trash2, Upload } from 'lucide-react';
+import { X, MessageCircle, Sparkles, Check, Calendar, Cake, Heart, Box, Gift, Layers, AlertCircle, Info } from 'lucide-react';
 import { store } from '../lib/store';
-import { uploadInspirationImage } from '../lib/media';
 import { AppDatabase, Product, Flavor, PackagingOption, Addon, ProductVariation, CakeBatter } from '../types';
 
 interface OrderModalProps {
@@ -58,11 +57,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [date, setDate] = useState<string>('');
   const [customerName, setCustomerName] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
-  const [inspirationPhoto, setInspirationPhoto] = useState<string | null>(null);
-  const [inspirationPhotoPreview, setInspirationPhotoPreview] = useState<string | null>(null);
-  const [inspirationPhotoName, setInspirationPhotoName] = useState<string>('');
-  const [inspirationPhotoFile, setInspirationPhotoFile] = useState<File | null>(null);
-  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [acceptedPaymentTerms, setAcceptedPaymentTerms] = useState(false);
   const [deliveryType] = useState<'retirada'>('retirada');
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -287,38 +281,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   // Contabilização de todo o conjunto no pedido final
   const estimatedTotal = basePrice + batterExtra + flavor1Extra + flavor2Extra + flavor3Extra + salgadosFlavorsExtra + packagingExtra + addonsExtra;
 
-  // Upload de foto de inspiração
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      if (inspirationPhotoPreview?.startsWith('blob:')) URL.revokeObjectURL(inspirationPhotoPreview);
-      setInspirationPhotoPreview(URL.createObjectURL(file));
-      setInspirationPhoto(null);
-      setInspirationPhotoName(file.name);
-      setInspirationPhotoFile(file);
-      setIsUploadingPhoto(true);
-      setValidationError(null);
-      const imageUrl = await uploadInspirationImage(file);
-      setInspirationPhoto(imageUrl);
-      setInspirationPhotoPreview(imageUrl);
-    } catch (error) {
-      setValidationError(error instanceof Error ? error.message : 'Não foi possível enviar a foto de inspiração.');
-    } finally {
-      setIsUploadingPhoto(false);
-      e.target.value = '';
-    }
-  };
-
-  const handleRemovePhoto = () => {
-    if (inspirationPhotoPreview?.startsWith('blob:')) URL.revokeObjectURL(inspirationPhotoPreview);
-    setInspirationPhoto(null);
-    setInspirationPhotoPreview(null);
-    setInspirationPhotoName('');
-    setInspirationPhotoFile(null);
-  };
-
   const handleSendWhatsApp = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
@@ -357,16 +319,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       return;
     }
 
-    if (isUploadingPhoto) {
-      setValidationError('Aguarde o envio da foto de inspiração terminar antes de continuar.');
-      return;
-    }
-
-    if (inspirationPhotoPreview && !inspirationPhoto) {
-      setValidationError('Não foi possível enviar a foto de referência. Remova-a ou tente anexá-la novamente antes de continuar.');
-      return;
-    }
-
     const depositAmount = estimatedTotal / 2;
     const remainingAmount = estimatedTotal - depositAmount;
 
@@ -396,7 +348,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       `📅 Data do evento: ${date || 'A combinar'}\n` +
       `🚚 Retirada no ateliê ou envio por Uber Flash / 99 Entregas\n` +
       (notes ? `📝 Detalhes: ${notes}\n` : '') +
-      (allowsInspirationPhoto && inspirationPhoto ? `\n*FOTO DE REFERÊNCIA*\n📸 ${inspirationPhotoName || 'Imagem de inspiração'}\n${inspirationPhoto}\n` : '') +
       `\n━━━━━━━━━━━━━━━━━━━━\n` +
       `*RESUMO DE VALORES*\n` +
       `💰 Total estimado: *R$ ${estimatedTotal.toFixed(2).replace('.', ',')}*\n` +
@@ -418,34 +369,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       delivery_type: 'Retirada no Ateliê',
       location: 'Ateliê (Retirada própria ou Uber Flash / 99 Entregas)',
       notes: notes,
-      inspiration_photo: allowsInspirationPhoto ? inspirationPhoto || undefined : undefined,
       estimated_total: estimatedTotal,
       formatted_message: formattedMessage,
     });
-
-    // Links wa.me only open a conversation with text. When the browser supports
-    // file sharing, the native share sheet sends the actual image file to WhatsApp.
-    const canSharePhoto = Boolean(
-      inspirationPhotoFile
-      && typeof navigator.share === 'function'
-      && typeof navigator.canShare === 'function'
-      && navigator.canShare({ files: [inspirationPhotoFile] }),
-    );
-
-    if (canSharePhoto && inspirationPhotoFile) {
-      try {
-        await navigator.share({
-          title: 'Pedido — A Doceria da Manu',
-          text: formattedMessage,
-          files: [inspirationPhotoFile],
-        });
-        onClose();
-        return;
-      } catch (error) {
-        // Canceling the share sheet is intentional: keep the order open for retry.
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-      }
-    }
 
     const targetUrl = `https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(formattedMessage)}`;
     window.open(targetUrl, '_blank');
@@ -921,11 +847,6 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             <div>
               <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider flex items-center justify-between">
                 <span>{isSalgados ? '8. Detalhes ou observações para o pedido' : '9. Detalhes, cores ou frase para o pedido'}</span>
-                {allowsInspirationPhoto && (
-                  <span className="text-[10px] text-[#D81E5B] font-medium">
-                    Bolos Decorados, Kit Festa & Festa na Escola
-                  </span>
-                )}
               </label>
               <textarea
                 rows={2}
@@ -940,84 +861,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               />
             </div>
 
-            {/* OPÇÃO DE ANEXAR FOTO DE INSPIRAÇÃO: SOMENTE PARA BOLOS DECORADOS, KIT FESTA OU FESTA NA ESCOLA */}
+            {/* LEMBRETE DE FOTO DE INSPIRAÇÃO: SOMENTE PARA PRODUTOS PERSONALIZÁVEIS */}
             {allowsInspirationPhoto && (
-              <div className="p-3.5 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#3D1E26] flex items-center gap-1.5">
-                    <Camera className="w-3.5 h-3.5 text-[#D81E5B]" />
-                    Anexar Foto de Inspiração (Opcional)
-                  </span>
-                  <span className="text-[10px] font-semibold text-[#8C5D6C] bg-white border border-[#FAD0DE] px-2 py-0.5 rounded-full">
-                    Referência / Modelo
-                  </span>
-                </div>
-                
-                <p className="text-[11px] text-[#7A505D]">
-                  Tem uma foto de bolo, paleta de cores ou decoração de referência? Anexe abaixo para a Manu analisar o seu modelo:
+              <div className="p-3.5 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE]">
+                <p className="text-[11px] leading-relaxed text-[#7A505D]">
+                  <strong className="text-[#D81E5B]">Foto de inspiração:</strong> após abrir a conversa, envie pelo WhatsApp as fotos de referência, paleta de cores ou decoração desejada para a Manu analisar o seu modelo.
                 </p>
-
-                {inspirationPhotoPreview ? (
-                  <div className="p-3 rounded-xl bg-white border border-[#FAD0DE] flex items-center justify-between gap-3 shadow-2xs animate-in fade-in duration-150">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <img 
-                        src={inspirationPhotoPreview}
-                        alt="Foto de inspiração" 
-                        className="w-12 h-12 rounded-xl object-cover border border-[#FAD0DE] shrink-0" 
-                      />
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-[#3D1E26] truncate">
-                          {inspirationPhotoName || 'Foto de inspiração anexada'}
-                        </p>
-                        <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
-                          <Check className="w-3 h-3" /> {isUploadingPhoto ? 'Preparando imagem para o WhatsApp...' : inspirationPhoto ? 'Imagem pronta para visualização no WhatsApp' : 'Envio da imagem não concluído'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <label 
-                        htmlFor="photo-upload-input"
-                        className="px-2.5 py-1.5 rounded-lg bg-[#FFF0F4] hover:bg-[#FAD0DE] text-[#D81E5B] text-[11px] font-semibold cursor-pointer transition-colors"
-                      >
-                        Trocar
-                      </label>
-                      <button
-                        type="button"
-                        onClick={handleRemovePhoto}
-                        className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors cursor-pointer"
-                        title="Remover foto"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <label 
-                    htmlFor="photo-upload-input"
-                    className="flex flex-col sm:flex-row items-center justify-center gap-2.5 p-4 rounded-xl border border-dashed border-[#F8B4C9] bg-white hover:bg-[#FFFDFC] text-center cursor-pointer transition-colors hover:border-[#D81E5B] group"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-[#FFF0F4] text-[#D81E5B] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                      <Upload className="w-4 h-4" />
-                    </div>
-                    <div className="text-left">
-                      <span className="text-xs font-semibold text-[#D81E5B] block">
-                        {isUploadingPhoto ? 'Enviando foto de referência...' : 'Clique aqui para selecionar uma foto de referência'}
-                      </span>
-                      <span className="text-[10px] text-[#9E7381]">
-                        Formatos aceitos: JPG, PNG ou WEBP (até 4MB)
-                      </span>
-                    </div>
-                  </label>
-                )}
-
-                <input 
-                  id="photo-upload-input"
-                  type="file" 
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handlePhotoUpload} 
-                  className="hidden" 
-                />
               </div>
             )}
           </div>
@@ -1149,16 +998,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           <div className="pt-1">
             <button
               type="submit"
-              disabled={isUploadingPhoto || Boolean(inspirationPhotoPreview && !inspirationPhoto)}
               className="w-full py-3.5 px-6 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2.5 cursor-pointer active:scale-98"
             >
               <MessageCircle className="w-5 h-5 fill-white" />
-              <span>{isUploadingPhoto ? 'Enviando foto...' : 'Enviar Pedido para o WhatsApp'}</span>
+              <span>Enviar Pedido para o WhatsApp</span>
             </button>
             <p className="text-[11px] text-[#8C5D6C] text-center mt-2">
-              {allowsInspirationPhoto && inspirationPhoto
-                ? 'Mensagem formatada e foto de inspiração prontas para visualização no WhatsApp.'
-                : 'Mensagem formatada e pronta para envio no WhatsApp!'}
+              Mensagem formatada e pronta para envio no WhatsApp!
             </p>
           </div>
 
