@@ -117,6 +117,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenOrderModal, data, isPrevie
         </div>
       </div>
 
+      {/* Keep the live status visible on compact headers without crowding the primary actions. */}
+      <div className="lg:hidden absolute left-1/2 -translate-x-1/2 -bottom-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/90 border border-[#FAD0DE] text-[11px] font-bold text-[#3D1E26] shadow-2xs whitespace-nowrap">
+        <span className={`w-2 h-2 rounded-full ${statusInfo.color} animate-pulse`} />
+        <span>{statusInfo.label}</span>
+      </div>
+
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden bg-[#FFF3F6] border-b border-[#FCE0E9] px-6 py-5 shadow-lg animate-in fade-in slide-in-from-top-4 duration-200">
