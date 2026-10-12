@@ -312,10 +312,13 @@ class StoreService {
         .subscribe();
 
       client.auth.onAuthStateChange((event) => {
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') void loadDraftForStaff();
+        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          void loadDraftForStaff();
+        }
       });
-    } catch {
-      // Supabase table might not exist yet; schema.sql is provided for setup
+    } catch (error) {
+      // Keep the cached public site available, but make failed staff sync visible.
+      console.warn('Não foi possível iniciar a sincronização do Supabase:', error);
     }
   }
 
