@@ -14,6 +14,7 @@ class StoreService {
   private saveStatus: SaveStatus = 'idle';
   private errorMessage: string | null = null;
   private hasUnsavedDraft: boolean = false;
+  private hasStaffDraftSubscription = false;
 
   constructor() {
     this.publishedData = this.loadFromStorage(PUBLISHED_STORAGE_KEY, INITIAL_DATABASE);
@@ -177,30 +178,64 @@ class StoreService {
   private async initSupabaseSync(): Promise<void> {
     if (!isSupabaseConfigured || !supabase) return;
     const client = supabase;
+
+    const loadDraftForStaff = async () => {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) return;
+
+      const { data } = await client
+        .from('site_content')
+        .select('content')
+        .eq('id', 'draft_main')
+        .maybeSingle();
+
+      if (!data?.content) return;
+      this.draftData = data.content as AppDatabase;
+      this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
+      this.notify();
+
+      if (this.hasStaffDraftSubscription) return;
+      this.hasStaffDraftSubscription = true;
+      client.channel('site-content-draft-live')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'site_content', filter: 'id=eq.draft_main' }, (payload) => {
+          const changed = payload.new as { content?: AppDatabase };
+          if (!changed.content) return;
+          this.draftData = changed.content;
+          this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
+          this.notify();
+        })
+        .subscribe();
+    };
+
     try {
       const { data, error } = await client
         .from('site_content')
-        .select('*')
+        .select('content')
         .eq('id', 'published_main')
         .single();
 
       if (!error && data?.content) {
-        this.publishedData = data.content;
+        this.publishedData = data.content as AppDatabase;
         this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
         this.notify();
       }
-      // Changes published by an authenticated administrator are propagated to
-      // every open public page without a refresh.
+      await loadDraftForStaff();
+
+      // Every device receives published changes immediately; staff receive the
+      // shared draft through a separate RLS-protected subscription above.
       client.channel('site-content-live')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'site_content', filter: 'id=eq.published_main' }, async () => {
-          const { data: fresh } = await client.from('site_content').select('content').eq('id', 'published_main').single();
-          if (fresh?.content) {
-            this.publishedData = fresh.content as AppDatabase;
-            this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
-            this.notify();
-          }
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'site_content', filter: 'id=eq.published_main' }, (payload) => {
+          const changed = payload.new as { content?: AppDatabase };
+          if (!changed.content) return;
+          this.publishedData = changed.content;
+          this.saveToStorage(PUBLISHED_STORAGE_KEY, this.publishedData);
+          this.notify();
         })
         .subscribe();
+
+      client.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') void loadDraftForStaff();
+      });
     } catch {
       // Supabase table might not exist yet; schema.sql is provided for setup
     }
