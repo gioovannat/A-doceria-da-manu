@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, MessageCircle, Sparkles, Check, Calendar, Cake, Heart, Box, Gift, Layers, AlertCircle, Info, Camera, Image as ImageIcon, Trash2, Upload } from 'lucide-react';
 import { store } from '../lib/store';
+import { uploadSiteImage } from '../lib/media';
 import { AppDatabase, Product, Flavor, PackagingOption, Addon, ProductVariation, CakeBatter } from '../types';
 
 interface OrderModalProps {
@@ -58,6 +59,8 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [inspirationPhoto, setInspirationPhoto] = useState<string | null>(null);
   const [inspirationPhotoName, setInspirationPhotoName] = useState<string>('');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [acceptedPaymentTerms, setAcceptedPaymentTerms] = useState(false);
   const [deliveryType] = useState<'retirada'>('retirada');
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -240,6 +243,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     });
   }, [category, isOpen, requiresBatter, requiresFlavors, requires2Flavors, requires3Flavors, minAddons, isSalgados, availableBatters, availableFlavors, availablePackaging, availableVariations, availableAddons]);
 
+  useEffect(() => {
+    if (!isOpen) setAcceptedPaymentTerms(false);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   // Selected item objects for pricing
@@ -278,19 +285,21 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const estimatedTotal = basePrice + batterExtra + flavor1Extra + flavor2Extra + flavor3Extra + salgadosFlavorsExtra + packagingExtra + addonsExtra;
 
   // Upload de foto de inspiração
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 8 * 1024 * 1024) {
-        setValidationError('A foto de inspiração deve ter no máximo 8MB.');
-        return;
-      }
+    if (!file) return;
+
+    try {
+      setIsUploadingPhoto(true);
+      setValidationError(null);
+      const imageUrl = await uploadSiteImage(file);
+      setInspirationPhoto(imageUrl);
       setInspirationPhotoName(file.name);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setInspirationPhoto(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+    } catch (error) {
+      setValidationError(error instanceof Error ? error.message : 'Não foi possível enviar a foto de inspiração.');
+    } finally {
+      setIsUploadingPhoto(false);
+      e.target.value = '';
     }
   };
 
@@ -327,32 +336,52 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       return;
     }
 
+    if (!acceptedPaymentTerms) {
+      setValidationError('Confirme que está ciente de que o pedido só é confirmado após o pagamento de 50% do valor dos itens.');
+      return;
+    }
+
+    if (isUploadingPhoto) {
+      setValidationError('Aguarde o envio da foto de inspiração terminar antes de continuar.');
+      return;
+    }
+
+    const depositAmount = estimatedTotal / 2;
+    const remainingAmount = estimatedTotal - depositAmount;
+
     const formattedMessage = 
-      `*Olá, ${settings.short_name}! Gostaria de solicitar um pedido:*\n\n` +
-      `🎂 *Item desejado:* ${category}\n` +
-      `👥 *Tamanho / Porção:* ${servings || 'Padrão'} (R$ ${basePrice.toFixed(2)})\n` +
-      (batter && !isSalgados ? `🍰 *Tipo de Massa (Obrigatório):* ${batter} ${batterExtra > 0 ? `(+R$ ${batterExtra.toFixed(2)})` : '(Inclusa)'}\n` : '') +
+      `*NOVO PEDIDO — A DOCERIA DA MANU*\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `Olá, ${settings.short_name}! Gostaria de verificar a disponibilidade para este pedido.\n\n` +
+      `*PRODUTO*\n` +
+      `🎂 ${category}\n` +
+      `👥 Tamanho / porção: ${servings || 'Padrão'} (R$ ${basePrice.toFixed(2).replace('.', ',')})\n` +
+      (batter && !isSalgados ? `🍰 Massa: ${batter} ${batterExtra > 0 ? `(+R$ ${batterExtra.toFixed(2).replace('.', ',')})` : '(inclusa)'}\n` : '') +
       (isSalgados
-        ? `🥟 *Sabores dos Salgados (Sem Limite):* ${selectedSalgadoFlavors.join(', ')} ${salgadosFlavorsExtra > 0 ? `(+R$ ${salgadosFlavorsExtra.toFixed(2)})` : '(Inclusos)'}\n`
+        ? `🥟 Sabores: ${selectedSalgadoFlavors.join(', ')} ${salgadosFlavorsExtra > 0 ? `(+R$ ${salgadosFlavorsExtra.toFixed(2).replace('.', ',')})` : '(inclusos)'}\n`
         : requires3Flavors
-          ? `🍓 *1º Recheio (Obrigatório):* ${flavor1} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2)})` : '(Incluso)'}\n` +
-            `🍫 *2º Recheio (Obrigatório):* ${flavor2} ${flavor2Extra > 0 ? `(+R$ ${flavor2Extra.toFixed(2)})` : '(Incluso)'}\n` +
-            `🍰 *3º Recheio (Obrigatório):* ${flavor3} ${flavor3Extra > 0 ? `(+R$ ${flavor3Extra.toFixed(2)})` : '(Incluso)'}\n`
+          ? `🍓 1º recheio: ${flavor1} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2).replace('.', ',')})` : '(incluso)'}\n` +
+            `🍫 2º recheio: ${flavor2} ${flavor2Extra > 0 ? `(+R$ ${flavor2Extra.toFixed(2).replace('.', ',')})` : '(incluso)'}\n` +
+            `🍰 3º recheio: ${flavor3} ${flavor3Extra > 0 ? `(+R$ ${flavor3Extra.toFixed(2).replace('.', ',')})` : '(incluso)'}\n`
           : requires2Flavors
-          ? `🍓 *1º Recheio (Obrigatório):* ${flavor1} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2)})` : '(Incluso)'}\n` +
-            `🍫 *2º Recheio (Obrigatório):* ${flavor2} ${flavor2Extra > 0 ? `(+R$ ${flavor2Extra.toFixed(2)})` : '(Incluso)'}\n`
-          : (requiresFlavors && flavor1 ? `🍓 *Recheio / Sabor:* ${flavor1 || 'Padrão'} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2)})` : ''}\n` : '')
+          ? `🍓 1º recheio: ${flavor1} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2).replace('.', ',')})` : '(incluso)'}\n` +
+            `🍫 2º recheio: ${flavor2} ${flavor2Extra > 0 ? `(+R$ ${flavor2Extra.toFixed(2).replace('.', ',')})` : '(incluso)'}\n`
+          : (requiresFlavors && flavor1 ? `🍓 Recheio / sabor: ${flavor1 || 'Padrão'} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2).replace('.', ',')})` : '(incluso)'}\n` : '')
       ) +
-      `📦 *Embalagem:* ${selectedPack || 'Padrão'} ${packagingExtra > 0 ? `(+R$ ${packagingExtra.toFixed(2)})` : '(Inclusa)'}\n` +
-      (selectedAddons.length > 0 ? `✨ *Adicionais:* ${selectedAddons.join(', ')} (+R$ ${addonsExtra.toFixed(2)})\n` : '') +
-      `📅 *Data do evento:* ${date || 'A combinar'}\n` +
-      `🚚 *Forma de Recebimento:* Retirada no Ateliê (Cliente pode retirar pessoalmente ou solicitar/pagar Uber Flash / 99 Entregas)\n` +
-      (notes ? `📝 *Detalhes/Cores/Frase:* ${notes}\n` : '') +
-      (allowsInspirationPhoto && inspirationPhoto ? `📸 *Foto de Inspiração Anexada:* Sim ("${inspirationPhotoName || 'Foto de referência'}" - enviarei a imagem aqui no WhatsApp)\n` : '') +
-      `\n═════════════════════════\n` +
-      `💰 *VALOR TOTAL CONTABILIZADO:* R$ ${estimatedTotal.toFixed(2).replace('.', ',')}\n` +
-      `═════════════════════════\n\n` +
-      `_Poderia me confirmar a disponibilidade na agenda para esta data?_`;
+      `📦 Embalagem: ${selectedPack || 'Padrão'} ${packagingExtra > 0 ? `(+R$ ${packagingExtra.toFixed(2).replace('.', ',')})` : '(inclusa)'}\n` +
+      (selectedAddons.length > 0 ? `✨ Adicionais: ${selectedAddons.join(', ')} (+R$ ${addonsExtra.toFixed(2).replace('.', ',')})\n` : '') +
+      `\n*AGENDA E RECEBIMENTO*\n` +
+      `📅 Data do evento: ${date || 'A combinar'}\n` +
+      `🚚 Retirada no ateliê ou envio por Uber Flash / 99 Entregas\n` +
+      (notes ? `📝 Detalhes: ${notes}\n` : '') +
+      (allowsInspirationPhoto && inspirationPhoto ? `\n*FOTO DE REFERÊNCIA*\n📸 ${inspirationPhotoName || 'Imagem de inspiração'}\n${inspirationPhoto}\n` : '') +
+      `\n━━━━━━━━━━━━━━━━━━━━\n` +
+      `*RESUMO DE VALORES*\n` +
+      `💰 Total estimado: *R$ ${estimatedTotal.toFixed(2).replace('.', ',')}*\n` +
+      `✅ Sinal para confirmar (50%): *R$ ${depositAmount.toFixed(2).replace('.', ',')}*\n` +
+      `Saldo na retirada/entrega: R$ ${remainingAmount.toFixed(2).replace('.', ',')}\n\n` +
+      `☑️ Cliente ciente: o pedido só é confirmado após o pagamento de 50% do valor dos itens.\n\n` +
+      `_Pode confirmar a disponibilidade para esta data?_`;
 
     // Record order in store
     store.recordOrder({
@@ -366,7 +395,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       delivery_type: 'Retirada no Ateliê',
       location: 'Ateliê (Retirada própria ou Uber Flash / 99 Entregas)',
       notes: notes,
-      inspiration_photo: allowsInspirationPhoto && inspirationPhotoName ? inspirationPhotoName : (inspirationPhoto ? 'Foto anexada' : undefined),
+      inspiration_photo: allowsInspirationPhoto ? inspirationPhoto || undefined : undefined,
       estimated_total: estimatedTotal,
       formatted_message: formattedMessage,
     });
@@ -879,7 +908,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                           {inspirationPhotoName || 'Foto de inspiração anexada'}
                         </p>
                         <p className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-0.5">
-                          <Check className="w-3 h-3" /> Imagem anexada com sucesso
+                          <Check className="w-3 h-3" /> Imagem pronta para visualização no WhatsApp
                         </p>
                       </div>
                     </div>
@@ -911,10 +940,10 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                     </div>
                     <div className="text-left">
                       <span className="text-xs font-semibold text-[#D81E5B] block">
-                        Clique aqui para selecionar uma foto de referência
+                        {isUploadingPhoto ? 'Enviando foto de referência...' : 'Clique aqui para selecionar uma foto de referência'}
                       </span>
                       <span className="text-[10px] text-[#9E7381]">
-                        Formatos aceitos: JPG, PNG ou WEBP (até 8MB)
+                        Formatos aceitos: JPG, PNG ou WEBP (até 5MB)
                       </span>
                     </div>
                   </label>
@@ -923,13 +952,28 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 <input 
                   id="photo-upload-input"
                   type="file" 
-                  accept="image/*" 
+                  accept="image/jpeg,image/png,image/webp"
                   onChange={handlePhotoUpload} 
                   className="hidden" 
                 />
               </div>
             )}
           </div>
+
+          <label className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-colors ${
+            acceptedPaymentTerms ? 'bg-emerald-50 border-emerald-200' : 'bg-[#FFF9FB] border-[#FAD0DE] hover:bg-[#FFF5F8]'
+          }`}>
+            <input
+              type="checkbox"
+              checked={acceptedPaymentTerms}
+              onChange={(e) => setAcceptedPaymentTerms(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-[#D81E5B] shrink-0"
+              required
+            />
+            <span className="text-[11px] leading-relaxed text-[#5B3642]">
+              Estou ciente de que <strong>o pedido só é confirmado após o pagamento de 50% do valor dos itens</strong>.
+            </span>
+          </label>
 
           {/* ============================================================= */}
           {/* EXTRATO DE CONTABILIZAÇÃO COMPLETA DO PEDIDO                   */}
@@ -1043,14 +1087,15 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           <div className="pt-1">
             <button
               type="submit"
+              disabled={isUploadingPhoto}
               className="w-full py-3.5 px-6 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2.5 cursor-pointer active:scale-98"
             >
               <MessageCircle className="w-5 h-5 fill-white" />
-              <span>Enviar Pedido para o WhatsApp</span>
+              <span>{isUploadingPhoto ? 'Enviando foto...' : 'Enviar Pedido para o WhatsApp'}</span>
             </button>
             <p className="text-[11px] text-[#8C5D6C] text-center mt-2">
               {allowsInspirationPhoto && inspirationPhoto
-                ? 'Mensagem formatada e pronta! Você poderá enviar a foto de inspiração anexada no WhatsApp.'
+                ? 'Mensagem formatada e foto de inspiração prontas para visualização no WhatsApp.'
                 : 'Mensagem formatada e pronta para envio no WhatsApp!'}
             </p>
           </div>
