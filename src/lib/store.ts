@@ -16,6 +16,7 @@ class StoreService {
   private hasUnsavedDraft: boolean = false;
   private hasStaffDraftSubscription = false;
   private writeQueue: Promise<void> = Promise.resolve();
+  private draftRevision: string | null = null;
   private autoPublishTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingAutoPublish: { data: AppDatabase; authorName: string } | null = null;
 
@@ -211,24 +212,32 @@ class StoreService {
   private async writePublishedAndDraft(data: AppDatabase, authorName: string): Promise<void> {
     if (!isSupabaseConfigured || !supabase) return;
     const client = supabase;
-
-    const now = data.updated_at || new Date().toISOString();
     await this.queueWrite(async () => {
-      const { error: publishError } = await client.from('site_content').upsert({
-        id: 'published_main',
-        content: data,
-        published_at: data.published_at || now,
-        published_by: authorName,
-        updated_at: now,
+      const { data: result, error } = await client.rpc('save_site_content', {
+        p_content: data,
+        p_expected_updated_at: this.draftRevision,
+        p_publish: true,
+        p_author: authorName,
       });
-      if (publishError) throw publishError;
+      if (error) throw error;
+      this.draftRevision = result as string;
+      data.updated_at = this.draftRevision;
+    });
+  }
 
-      const { error: draftError } = await client.from('site_content').upsert({
-        id: 'draft_main',
-        content: data,
-        updated_at: now,
+  private async writeDraft(data: AppDatabase): Promise<void> {
+    if (!isSupabaseConfigured || !supabase) return;
+    const client = supabase;
+    await this.queueWrite(async () => {
+      const { data: result, error } = await client.rpc('save_site_content', {
+        p_content: data,
+        p_expected_updated_at: this.draftRevision,
+        p_publish: false,
+        p_author: null,
       });
-      if (draftError) throw draftError;
+      if (error) throw error;
+      this.draftRevision = result as string;
+      data.updated_at = this.draftRevision;
     });
   }
 
@@ -257,7 +266,7 @@ class StoreService {
 
       const { data } = await client
         .from('site_content')
-        .select('content')
+        .select('content, updated_at')
         .eq('id', 'draft_main')
         .maybeSingle();
 
@@ -265,6 +274,7 @@ class StoreService {
       const incoming = data.content as AppDatabase;
       // The database is the source of truth when a device opens the admin.
       this.draftData = incoming;
+      this.draftRevision = data.updated_at;
       this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
       this.notify();
 
@@ -272,10 +282,11 @@ class StoreService {
       this.hasStaffDraftSubscription = true;
       client.channel('site-content-draft-live')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'site_content', filter: 'id=eq.draft_main' }, (payload) => {
-          const changed = payload.new as { content?: AppDatabase };
+          const changed = payload.new as { content?: AppDatabase; updated_at?: string };
           if (!changed.content) return;
           if (this.isOlderVersion(changed.content, this.draftData)) return;
           this.draftData = changed.content;
+          this.draftRevision = changed.updated_at || changed.content.updated_at;
           this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
           this.notify();
         })
@@ -285,7 +296,7 @@ class StoreService {
     try {
       const { data, error } = await client
         .from('site_content')
-        .select('content')
+        .select('content, updated_at')
         .eq('id', 'published_main')
         .single();
 
@@ -374,18 +385,7 @@ class StoreService {
       this.draftData = updated;
       this.saveToStorage(DRAFT_STORAGE_KEY, this.draftData);
 
-      // If connected to Supabase, also sync to draft table
-      if (isSupabaseConfigured && supabase) {
-        const client = supabase;
-        await this.queueWrite(async () => {
-          const { error } = await client.from('site_content').upsert({
-            id: 'draft_main',
-            content: this.draftData,
-            updated_at: this.draftData.updated_at,
-          });
-          if (error) throw error;
-        });
-      }
+      await this.writeDraft(this.draftData);
 
       this.setSaveStatus('saved');
       this.notify();
