@@ -61,6 +61,24 @@ class AuthService {
     await supabase?.auth.signOut();
     this.setUser(null);
   }
+
+  public async updateCurrentProfile(updates: { name: string; avatar_url: string | null }): Promise<{ success: boolean; error?: string }> {
+    if (!supabase) return { success: false, error: 'O painel ainda não foi conectado ao Supabase.' };
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Sua sessão expirou. Entre novamente para continuar.' };
+
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .update({ name: updates.name, avatar_url: updates.avatar_url })
+      .eq('id', user.id)
+      .select('id, email, name, role, avatar_url, created_at, updated_at')
+      .single();
+
+    if (error || !profile) return { success: false, error: error?.message || 'Não foi possível atualizar o perfil.' };
+    this.setUser(profile as UserProfile);
+    return { success: true };
+  }
 }
 
 export const auth = new AuthService();

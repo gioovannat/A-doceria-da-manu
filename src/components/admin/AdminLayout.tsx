@@ -364,7 +364,7 @@ export const AdminLayout: React.FC = () => {
           )}
 
           {activeTab === 'configuracoes' && (
-            <SettingsView data={draftData} onChange={handleUpdateDraft} />
+            <SettingsView data={draftData} onChange={handleUpdateDraft} currentUser={currentUser} />
           )}
         </main>
 

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { AppDatabase } from '../../../types';
+import React, { useEffect, useState } from 'react';
+import { AppDatabase, UserProfile } from '../../../types';
 import { Card } from '../../ui/Card';
 import { Input } from '../../ui/Input';
 import { Textarea } from '../../ui/Textarea';
@@ -8,17 +8,41 @@ import { ImageUploader } from '../../ui/ImageUploader';
 import { ConfirmDialog } from '../../ui/ConfirmDialog';
 import { Store, Globe, Share2, Download, Upload, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { store } from '../../../lib/store';
+import { auth } from '../../../lib/auth';
 import { useToast } from '../../ui/Toast';
 
 interface SettingsViewProps {
   data: AppDatabase;
   onChange: (updater: (prev: AppDatabase) => AppDatabase) => void;
+  currentUser: UserProfile | null;
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ data, onChange }) => {
+export const SettingsView: React.FC<SettingsViewProps> = ({ data, onChange, currentUser }) => {
   const { settings } = data;
   const { success, error } = useToast();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [profileName, setProfileName] = useState(currentUser?.name || '');
+  const [profileAvatar, setProfileAvatar] = useState(currentUser?.avatar_url || '');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  useEffect(() => {
+    setProfileName(currentUser?.name || '');
+    setProfileAvatar(currentUser?.avatar_url || '');
+  }, [currentUser]);
+
+  const handleSaveProfile = async () => {
+    const name = profileName.trim();
+    if (!name) {
+      error('Informe o nome do usuário.');
+      return;
+    }
+
+    setIsSavingProfile(true);
+    const result = await auth.updateCurrentProfile({ name, avatar_url: profileAvatar || null });
+    setIsSavingProfile(false);
+    if (result.success) success('Perfil atualizado com sucesso!');
+    else error(result.error || 'Não foi possível atualizar o perfil.');
+  };
 
   const handleUpdate = (field: keyof typeof settings, val: any) => {
     onChange((prev) => ({
@@ -87,6 +111,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ data, onChange }) =>
 
   return (
     <div className="space-y-8 text-left">
+      <Card
+        title="Perfil do Usuário"
+        subtitle="Altere o nome e a foto exibidos no painel de gestão."
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+          <div className="space-y-4">
+            <Input
+              label="Nome do Usuário"
+              value={profileName}
+              onChange={(e) => setProfileName(e.target.value)}
+              placeholder="Seu nome"
+            />
+            <Input
+              label="E-mail da Conta"
+              value={currentUser?.email || ''}
+              disabled
+              helperText="O e-mail de acesso não é alterado nesta seção."
+            />
+            <Button type="button" onClick={handleSaveProfile} loading={isSavingProfile}>
+              Salvar Perfil
+            </Button>
+          </div>
+          <ImageUploader
+            label="Foto de Perfil"
+            value={profileAvatar}
+            onChange={setProfileAvatar}
+            aspectRatio="square"
+          />
+        </div>
+      </Card>
       
       {/* 1. Dados Comerciais & Atendimento */}
       <Card
