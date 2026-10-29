@@ -96,13 +96,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
 
   useEffect(() => {
     const list: Addon[] = [];
-    const seen = new Set<string>();
     const add = (addon: Addon) => {
-        const key = addon.name.trim().toLowerCase();
-        if (!seen.has(key)) {
-          seen.add(key);
-          list.push(addon);
-        }
+      const key = addon.name.trim().toLowerCase();
+      const existingIndex = list.findIndex((item) => item.name.trim().toLowerCase() === key);
+      if (existingIndex < 0) {
+        list.push(addon);
+      } else if (!list[existingIndex].image && addon.image) {
+        list[existingIndex] = { ...list[existingIndex], image: addon.image };
+      }
     };
     for (const addon of data.addons || []) add(addon);
     for (const p of data.products) {

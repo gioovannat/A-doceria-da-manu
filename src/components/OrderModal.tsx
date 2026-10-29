@@ -91,9 +91,14 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     ? selectedProductObj.packaging.filter(p => p.active)
     : packaging.filter(p => p.active));
 
-  const availableAddons: Addon[] = sortByName(Array.isArray(selectedProductObj?.addons)
+  const availableAddons: Addon[] = sortByName((Array.isArray(selectedProductObj?.addons)
     ? selectedProductObj.addons.filter(a => a.active)
-    : addons.filter(a => a.active));
+    : addons.filter(a => a.active)).map((addon) => ({
+      ...addon,
+      image: addon.image || addons.find((globalAddon) =>
+        globalAddon.name.trim().toLowerCase() === addon.name.trim().toLowerCase()
+      )?.image,
+    })));
 
   const availableVariations: ProductVariation[] = sortByName(Array.isArray(selectedProductObj?.variations)
     ? selectedProductObj.variations.filter(v => v.active)
@@ -382,9 +387,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div 
-        className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-[#FAD0DE] overflow-hidden max-h-[92vh] flex flex-col text-left"
+        className="relative w-full h-[100dvh] max-w-none bg-white shadow-2xl overflow-hidden flex flex-col text-left"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
