@@ -306,7 +306,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
   const packagingExtra = selectedPackagingObj?.additional_price || 0;
   const addonTotal = (addon: Addon) => {
-    const isPersonalizedSticker = /adesivo\s+personalizado/i.test(addon.name);
+    const isPersonalizedSticker = /adesivos?\s+personalizados?/i.test(addon.name);
     return addon.price * (isUnitOrder && isPersonalizedSticker ? unitQuantity : 1);
   };
   const addonsExtra = selectedAddons.reduce((acc, addName) => {
