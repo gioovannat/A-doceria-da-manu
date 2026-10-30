@@ -14,11 +14,12 @@ interface OrderModalProps {
 const sortByName = <T extends { name: string }>(items: T[]): T[] =>
   [...items].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
 
-const UNIT_PRICED_PRODUCT_SLUGS = new Set([
-  'brownie-recheado',
-  'brownie-no-palito',
-  'mini-neked-redondo',
-]);
+const UNIT_ORDER_RULES: Record<string, { minimumQuantity: number; unitsInInitialPrice: number }> = {
+  cupcakes: { minimumQuantity: 5, unitsInInitialPrice: 5 },
+  'brownie-recheado': { minimumQuantity: 1, unitsInInitialPrice: 1 },
+  'brownie-no-palito': { minimumQuantity: 1, unitsInInitialPrice: 1 },
+  'mini-neked-redondo': { minimumQuantity: 1, unitsInInitialPrice: 1 },
+};
 
 export const OrderModal: React.FC<OrderModalProps> = ({
   isOpen,
@@ -63,6 +64,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [selectedPack, setSelectedPack] = useState<string>('');
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [servings, setServings] = useState<string>('');
+  const [unitQuantity, setUnitQuantity] = useState(1);
   const [date, setDate] = useState<string>('');
   const [customerName, setCustomerName] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
@@ -74,6 +76,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const selectedProductObj: Product | undefined = products.find((p) => p.name === category)
     || uniqueProducts.find((p) => p.name === category || p.category === category)
     || uniqueProducts[0];
+  const unitOrderRule = UNIT_ORDER_RULES[selectedProductObj?.slug || ''];
+  const isUnitOrder = Boolean(unitOrderRule);
+  const minUnitQuantity = unitOrderRule?.minimumQuantity || 1;
 
   // Explicit empty lists mean that the corresponding step was removed in the panel.
   const availableBatters: CakeBatter[] = React.useMemo(() => {
@@ -238,7 +243,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     }
 
     // 4. Variations sync
-    if (availableVariations.length > 0) {
+    if (isUnitOrder) {
+      setServings('');
+    } else if (availableVariations.length > 0) {
       const varExists = availableVariations.some(v => v.name === servings);
       if (!varExists) {
         setServings(availableVariations[0]?.name || '');
@@ -252,7 +259,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         ? [availableAddons[0].name]
         : valid;
     });
-  }, [category, isOpen, requiresBatter, requiresFlavors, requires2Flavors, requires3Flavors, minAddons, isSalgados, availableBatters, availableFlavors, availablePackaging, availableVariations, availableAddons]);
+  }, [category, isOpen, requiresBatter, requiresFlavors, requires2Flavors, requires3Flavors, minAddons, isSalgados, isUnitOrder, availableBatters, availableFlavors, availablePackaging, availableVariations, availableAddons]);
+
+  useEffect(() => {
+    if (isOpen && isUnitOrder) setUnitQuantity(minUnitQuantity);
+  }, [category, isOpen, isUnitOrder, minUnitQuantity]);
 
   useEffect(() => {
     if (!isOpen) setAcceptedPaymentTerms(false);
@@ -269,13 +280,11 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const selectedPackagingObj = availablePackaging.find((p) => p.name === selectedPack);
 
   // Price calculation - CONTABILIZAÇÃO COMPLETA DE TUDO
-  const isUnitPricedProduct = UNIT_PRICED_PRODUCT_SLUGS.has(selectedProductObj?.slug || '');
-  const unitPrice = selectedProductObj?.starting_price || 130;
-  const variationPrice = (variation: ProductVariation) => {
-    const quantity = Number(variation.name.match(/^\s*(\d+)/)?.[1] || 1);
-    return isUnitPricedProduct ? unitPrice * quantity : variation.price;
-  };
-  const basePrice = selectedVariationObj ? variationPrice(selectedVariationObj) : unitPrice;
+  const initialPrice = selectedProductObj?.starting_price || 130;
+  const pricePerUnit = initialPrice / (unitOrderRule?.unitsInInitialPrice || 1);
+  const basePrice = isUnitOrder
+    ? pricePerUnit * unitQuantity
+    : (selectedVariationObj?.price || initialPrice);
 
   const batterExtra = selectedBatterObj?.additional_price || 0;
   const flavor1Extra = !isSalgados ? (selectedFlavor1Obj?.additional_price || 0) : 0;
@@ -347,7 +356,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       `*CLIENTE*\n👤 ${customerName.trim()}\n\n` +
       `*PRODUTO*\n` +
       `🎂 ${category}\n` +
-      `👥 Tamanho / porção: ${servings || 'Padrão'} (R$ ${basePrice.toFixed(2).replace('.', ',')})\n` +
+      (isUnitOrder
+        ? `👥 Quantidade: ${unitQuantity} unidade${unitQuantity !== 1 ? 's' : ''} (R$ ${basePrice.toFixed(2).replace('.', ',')})\n`
+        : `👥 Tamanho / porção: ${servings || 'Padrão'} (R$ ${basePrice.toFixed(2).replace('.', ',')})\n`) +
       (batter && !isSalgados ? `🍰 Massa: ${batter} ${batterExtra > 0 ? `(+R$ ${batterExtra.toFixed(2).replace('.', ',')})` : '(inclusa)'}\n` : '') +
       (isSalgados
         ? `🥟 Sabores: ${selectedSalgadoFlavors.join(', ')} ${salgadosFlavorsExtra > 0 ? `(+R$ ${salgadosFlavorsExtra.toFixed(2).replace('.', ',')})` : '(inclusos)'}\n`
@@ -379,7 +390,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       customer_name: customerName.trim(),
       product_name: category,
       batter: !isSalgados ? batter : undefined,
-      quantity: servings,
+      quantity: isUnitOrder ? `${unitQuantity} unidades` : servings,
       flavors: isSalgados ? selectedSalgadoFlavors : [flavor1, flavor2, flavor3].slice(0, requiresFlavors ? requiredFlavorCount : 0),
       packaging: selectedPack,
       addons: selectedAddons,
@@ -703,7 +714,43 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
           {/* 4. Tamanho / Variação ou Fatias */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {availableVariations.length > 0 && (
+            {isUnitOrder ? (
+            <div>
+              <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider">
+                4. Quantidade
+              </label>
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-[#FAD0DE] bg-[#FFFDFC] px-3 py-2.5">
+                <div className="flex items-center rounded-lg border border-[#FAD0DE] overflow-hidden bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setUnitQuantity((quantity) => Math.max(minUnitQuantity, quantity - 1))}
+                    disabled={unitQuantity <= minUnitQuantity}
+                    className="w-9 h-8 text-lg font-bold text-[#D81E5B] hover:bg-[#FFF0F4] disabled:cursor-not-allowed disabled:opacity-35"
+                    aria-label="Diminuir quantidade"
+                  >
+                    −
+                  </button>
+                  <output className="w-10 text-center text-sm font-bold text-[#3D1E26]" aria-live="polite">
+                    {unitQuantity}
+                  </output>
+                  <button
+                    type="button"
+                    onClick={() => setUnitQuantity((quantity) => quantity + 1)}
+                    className="w-9 h-8 text-lg font-bold text-[#D81E5B] hover:bg-[#FFF0F4]"
+                    aria-label="Aumentar quantidade"
+                  >
+                    +
+                  </button>
+                </div>
+                <span className="text-xs font-bold text-[#D81E5B] whitespace-nowrap">
+                  R$ {basePrice.toFixed(2).replace('.', ',')}
+                </span>
+              </div>
+              <p className="text-[11px] text-[#7A505D] mt-1.5">
+                R$ {pricePerUnit.toFixed(2).replace('.', ',')} por unidade{minUnitQuantity > 1 ? ` · mínimo ${minUnitQuantity} unidades` : ''}
+              </p>
+            </div>
+            ) : availableVariations.length > 0 && (
             <div>
               <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider">
                 {isSalgados ? '3. Quantidade / Cento' : '4. Tamanho / Opção'}
@@ -715,7 +762,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               >
                 {availableVariations.map((v) => (
                   <option key={v.id} value={v.name}>
-                    {v.name} (R$ {variationPrice(v).toFixed(2)})
+                    {v.name} (R$ {v.price.toFixed(2)})
                   </option>
                 ))}
               </select>
@@ -916,7 +963,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
             <div className="space-y-1 text-xs text-[#6B4651]">
               <div className="flex justify-between">
-                <span>• Base / Tamanho ({servings || 'Padrão'}):</span>
+                <span>• {isUnitOrder ? `Quantidade (${unitQuantity} unidade${unitQuantity !== 1 ? 's' : ''})` : `Base / Tamanho (${servings || 'Padrão'})`}:</span>
                 <span className="font-semibold text-[#3D1E26]">R$ {basePrice.toFixed(2)}</span>
               </div>
 
