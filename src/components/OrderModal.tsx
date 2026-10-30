@@ -291,17 +291,20 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     ? pricePerUnit * unitQuantity
     : (selectedVariationObj?.price || initialPrice);
 
-  const batterExtra = selectedBatterObj?.additional_price || 0;
-  const flavor1Extra = !isSalgados ? (selectedFlavor1Obj?.additional_price || 0) : 0;
-  const flavor2Extra = (!isSalgados && requires2Flavors) ? (selectedFlavor2Obj?.additional_price || 0) : 0;
-  const flavor3Extra = (!isSalgados && requires3Flavors) ? (selectedFlavor3Obj?.additional_price || 0) : 0;
+  // Para produtos vendidos por unidade, os acréscimos de massa e recheio são
+  // aplicados a cada unidade escolhida, assim como o preço-base do produto.
+  const itemQuantityMultiplier = isUnitOrder ? unitQuantity : 1;
+  const batterExtra = (selectedBatterObj?.additional_price || 0) * itemQuantityMultiplier;
+  const flavor1Extra = !isSalgados ? (selectedFlavor1Obj?.additional_price || 0) * itemQuantityMultiplier : 0;
+  const flavor2Extra = (!isSalgados && requires2Flavors) ? (selectedFlavor2Obj?.additional_price || 0) * itemQuantityMultiplier : 0;
+  const flavor3Extra = (!isSalgados && requires3Flavors) ? (selectedFlavor3Obj?.additional_price || 0) * itemQuantityMultiplier : 0;
   
   // Salgados extras (caso algum sabor especial tenha preço adicional)
   const salgadosFlavorsExtra = isSalgados
     ? selectedSalgadoFlavors.reduce((acc, fName) => {
         const item = availableFlavors.find((f) => f.name === fName);
         return acc + (item?.additional_price || 0);
-      }, 0)
+      }, 0) * itemQuantityMultiplier
     : 0;
 
   const packagingExtra = selectedPackagingObj?.additional_price || 0;
