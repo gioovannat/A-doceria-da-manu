@@ -14,6 +14,12 @@ interface OrderModalProps {
 const sortByName = <T extends { name: string }>(items: T[]): T[] =>
   [...items].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
 
+const UNIT_PRICED_PRODUCT_SLUGS = new Set([
+  'brownie-recheado',
+  'brownie-no-palito',
+  'mini-neked-redondo',
+]);
+
 export const OrderModal: React.FC<OrderModalProps> = ({
   isOpen,
   onClose,
@@ -263,9 +269,13 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const selectedPackagingObj = availablePackaging.find((p) => p.name === selectedPack);
 
   // Price calculation - CONTABILIZAÇÃO COMPLETA DE TUDO
-  const basePrice = selectedVariationObj?.price 
-    ? selectedVariationObj.price 
-    : (selectedProductObj?.starting_price || 130);
+  const isUnitPricedProduct = UNIT_PRICED_PRODUCT_SLUGS.has(selectedProductObj?.slug || '');
+  const unitPrice = selectedProductObj?.starting_price || 130;
+  const variationPrice = (variation: ProductVariation) => {
+    const quantity = Number(variation.name.match(/^\s*(\d+)/)?.[1] || 1);
+    return isUnitPricedProduct ? unitPrice * quantity : variation.price;
+  };
+  const basePrice = selectedVariationObj ? variationPrice(selectedVariationObj) : unitPrice;
 
   const batterExtra = selectedBatterObj?.additional_price || 0;
   const flavor1Extra = !isSalgados ? (selectedFlavor1Obj?.additional_price || 0) : 0;
@@ -705,7 +715,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               >
                 {availableVariations.map((v) => (
                   <option key={v.id} value={v.name}>
-                    {v.name} (R$ {v.price.toFixed(2)})
+                    {v.name} (R$ {variationPrice(v).toFixed(2)})
                   </option>
                 ))}
               </select>
