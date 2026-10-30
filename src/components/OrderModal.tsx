@@ -14,11 +14,12 @@ interface OrderModalProps {
 const sortByName = <T extends { name: string }>(items: T[]): T[] =>
   [...items].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
 
-const UNIT_ORDER_RULES: Record<string, { minimumQuantity: number; unitsInInitialPrice: number }> = {
-  cupcakes: { minimumQuantity: 5, unitsInInitialPrice: 5 },
-  'brownie-recheado': { minimumQuantity: 1, unitsInInitialPrice: 1 },
-  'brownie-no-palito': { minimumQuantity: 1, unitsInInitialPrice: 1 },
-  'mini-neked-redondo': { minimumQuantity: 1, unitsInInitialPrice: 1 },
+const UNIT_ORDER_RULES: Record<string, { minimumQuantity: number; unitsInInitialPrice: number; singularUnit: string; pluralUnit: string }> = {
+  cupcakes: { minimumQuantity: 5, unitsInInitialPrice: 5, singularUnit: 'unidade', pluralUnit: 'unidades' },
+  'brownie-recheado': { minimumQuantity: 1, unitsInInitialPrice: 1, singularUnit: 'unidade', pluralUnit: 'unidades' },
+  'brownie-no-palito': { minimumQuantity: 1, unitsInInitialPrice: 1, singularUnit: 'unidade', pluralUnit: 'unidades' },
+  'mini-neked-redondo': { minimumQuantity: 1, unitsInInitialPrice: 1, singularUnit: 'unidade', pluralUnit: 'unidades' },
+  'bolo-de-corte': { minimumQuantity: 1, unitsInInitialPrice: 1, singularUnit: 'kg', pluralUnit: 'kg' },
 };
 
 export const OrderModal: React.FC<OrderModalProps> = ({
@@ -79,6 +80,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const unitOrderRule = UNIT_ORDER_RULES[selectedProductObj?.slug || ''];
   const isUnitOrder = Boolean(unitOrderRule);
   const minUnitQuantity = unitOrderRule?.minimumQuantity || 1;
+  const quantityText = `${unitQuantity} ${unitQuantity === 1 ? unitOrderRule?.singularUnit || 'unidade' : unitOrderRule?.pluralUnit || 'unidades'}`;
 
   // Explicit empty lists mean that the corresponding step was removed in the panel.
   const availableBatters: CakeBatter[] = React.useMemo(() => {
@@ -357,7 +359,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       `*PRODUTO*\n` +
       `🎂 ${category}\n` +
       (isUnitOrder
-        ? `👥 Quantidade: ${unitQuantity} unidade${unitQuantity !== 1 ? 's' : ''} (R$ ${basePrice.toFixed(2).replace('.', ',')})\n`
+        ? `👥 Quantidade: ${quantityText} (R$ ${basePrice.toFixed(2).replace('.', ',')})\n`
         : `👥 Tamanho / porção: ${servings || 'Padrão'} (R$ ${basePrice.toFixed(2).replace('.', ',')})\n`) +
       (batter && !isSalgados ? `🍰 Massa: ${batter} ${batterExtra > 0 ? `(+R$ ${batterExtra.toFixed(2).replace('.', ',')})` : '(inclusa)'}\n` : '') +
       (isSalgados
@@ -390,7 +392,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       customer_name: customerName.trim(),
       product_name: category,
       batter: !isSalgados ? batter : undefined,
-      quantity: isUnitOrder ? `${unitQuantity} unidades` : servings,
+      quantity: isUnitOrder ? quantityText : servings,
       flavors: isSalgados ? selectedSalgadoFlavors : [flavor1, flavor2, flavor3].slice(0, requiresFlavors ? requiredFlavorCount : 0),
       packaging: selectedPack,
       addons: selectedAddons,
@@ -717,7 +719,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             {isUnitOrder ? (
             <div>
               <label className="block text-xs font-bold text-[#3D1E26] mb-1.5 uppercase tracking-wider">
-                4. Quantidade
+                4. Quantidade{unitOrderRule?.singularUnit === 'kg' ? ' (kg)' : ''}
               </label>
               <div className="flex items-center justify-between gap-3 rounded-xl border border-[#FAD0DE] bg-[#FFFDFC] px-3 py-2.5">
                 <div className="flex items-center rounded-lg border border-[#FAD0DE] overflow-hidden bg-white">
@@ -747,7 +749,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-[#7A505D] mt-1.5">
-                R$ {pricePerUnit.toFixed(2).replace('.', ',')} por unidade{minUnitQuantity > 1 ? ` · mínimo ${minUnitQuantity} unidades` : ''}
+                R$ {pricePerUnit.toFixed(2).replace('.', ',')} por {unitOrderRule?.singularUnit || 'unidade'}{minUnitQuantity > 1 ? ` · mínimo ${minUnitQuantity} ${unitOrderRule?.pluralUnit || 'unidades'}` : ''}
               </p>
             </div>
             ) : availableVariations.length > 0 && (
@@ -963,7 +965,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
             <div className="space-y-1 text-xs text-[#6B4651]">
               <div className="flex justify-between">
-                <span>• {isUnitOrder ? `Quantidade (${unitQuantity} unidade${unitQuantity !== 1 ? 's' : ''})` : `Base / Tamanho (${servings || 'Padrão'})`}:</span>
+                <span>• {isUnitOrder ? `Quantidade (${quantityText})` : `Base / Tamanho (${servings || 'Padrão'})`}:</span>
                 <span className="font-semibold text-[#3D1E26]">R$ {basePrice.toFixed(2)}</span>
               </div>
 
