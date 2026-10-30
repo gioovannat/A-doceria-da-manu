@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Sparkles, MessageCircle, Heart, Users, Check } from 'lucide-react';
-import { AppDatabase, SpecialtyItem } from '../types';
+import { Sparkles, MessageCircle, Heart, Users, Check, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { AppDatabase } from '../types';
 import { store } from '../lib/store';
 import { generateWhatsAppUrl } from '../lib/whatsapp';
 
@@ -13,6 +13,7 @@ export const Specialties: React.FC<SpecialtiesProps> = ({ onSelectItemForOrder, 
   const currentData = data || store.getPublished();
   const { specialties, products } = currentData;
   const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [galleryViewer, setGalleryViewer] = useState<{ images: string[]; index: number; title: string } | null>(null);
 
   const categories = [
     { id: 'all', label: 'Todos os Itens' },
@@ -27,7 +28,7 @@ export const Specialties: React.FC<SpecialtiesProps> = ({ onSelectItemForOrder, 
   // The public menu is product-driven. `specialties` remains as optional
   // editorial enrichment for legacy products, while every active product is
   // rendered even when it shares a category with another one.
-  const activeSpecialties: SpecialtyItem[] = products
+  const activeSpecialties = products
     .filter((product) => product.active)
     .map((product) => {
       const specialty = specialties.find(
@@ -47,15 +48,23 @@ export const Specialties: React.FC<SpecialtiesProps> = ({ onSelectItemForOrder, 
         seoTag: product.card_tag || specialty?.seoTag || '',
         startingPrice: product.starting_price_display,
         highlights: (product.card_highlights || specialty?.highlights || []).filter(Boolean),
+        gallery: Array.from(new Set([product.main_image, ...(product.gallery || [])].filter(Boolean))),
         sort_order: product.sort_order,
         active: product.active,
         featured: product.featured,
       };
     })
     .sort((a, b) => a.sort_order - b.sort_order);
-  const filteredItems = activeCategory === 'all'
-    ? [...activeSpecialties].sort((a, b) => a.title.localeCompare(b.title, 'pt-BR', { sensitivity: 'base' }))
-    : activeSpecialties.filter((item) => item.category === activeCategory);
+  const filteredItems = activeSpecialties
+    .filter((item) => activeCategory === 'all' || item.category === activeCategory)
+    .sort((a, b) => a.title.localeCompare(b.title, 'pt-BR', { sensitivity: 'base' }));
+
+  const changeGalleryImage = (direction: -1 | 1) => {
+    setGalleryViewer((current) => current && ({
+      ...current,
+      index: (current.index + direction + current.images.length) % current.images.length,
+    }));
+  };
 
   return (
     <section id="cardapio" className="py-20 md:py-28 bg-[#FFF8FA] scroll-mt-20">
@@ -105,7 +114,12 @@ export const Specialties: React.FC<SpecialtiesProps> = ({ onSelectItemForOrder, 
               className="group flex flex-col bg-white rounded-3xl overflow-hidden border border-[#FCE1EB] shadow-xs hover:shadow-xl transition-all duration-300 hover:-translate-y-1.5"
             >
               {/* Image Frame with Smooth Scale Hover */}
-              <div className="relative aspect-4/3 w-full overflow-hidden bg-[#FFF0F4]">
+              <button
+                type="button"
+                onClick={() => setGalleryViewer({ images: item.gallery, index: 0, title: item.title })}
+                className="relative aspect-4/3 w-full overflow-hidden bg-[#FFF0F4] text-left cursor-zoom-in"
+                aria-label={`Ampliar fotos de ${item.title}`}
+              >
                 <img
                   src={item.image}
                   alt={item.title}
@@ -125,7 +139,7 @@ export const Specialties: React.FC<SpecialtiesProps> = ({ onSelectItemForOrder, 
                 <div className="absolute bottom-3 left-3.5 bg-[#3D1E26]/85 backdrop-blur-xs px-3 py-1 rounded-xl text-xs font-semibold text-white">
                   {item.startingPrice}
                 </div>
-              </div>
+              </button>
 
               {/* Card Body */}
               <div className="p-6 flex flex-col flex-1 justify-between">
@@ -185,6 +199,52 @@ export const Specialties: React.FC<SpecialtiesProps> = ({ onSelectItemForOrder, 
             </div>
           ))}
         </div>
+
+        {galleryViewer && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#2D111A]/85 p-4 sm:p-8" role="dialog" aria-modal="true" aria-label={`Fotos de ${galleryViewer.title}`}>
+            <button
+              type="button"
+              onClick={() => setGalleryViewer(null)}
+              className="absolute top-4 right-4 sm:top-6 sm:right-6 w-10 h-10 rounded-full bg-white text-[#3D1E26] flex items-center justify-center hover:bg-[#FFF0F4] transition-colors cursor-pointer"
+              aria-label="Fechar fotos"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="relative w-full max-w-5xl">
+              <img
+                src={galleryViewer.images[galleryViewer.index]}
+                alt={`${galleryViewer.title} — foto ${galleryViewer.index + 1}`}
+                className="max-h-[80vh] w-full object-contain rounded-3xl bg-white shadow-2xl"
+                referrerPolicy="no-referrer"
+              />
+
+              {galleryViewer.images.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => changeGalleryImage(-1)}
+                    className="absolute left-2 sm:-left-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white text-[#D81E5B] flex items-center justify-center shadow-lg hover:bg-[#FFF0F4] transition-colors cursor-pointer"
+                    aria-label="Foto anterior"
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => changeGalleryImage(1)}
+                    className="absolute right-2 sm:-right-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white text-[#D81E5B] flex items-center justify-center shadow-lg hover:bg-[#FFF0F4] transition-colors cursor-pointer"
+                    aria-label="Próxima foto"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                  <p className="mt-3 text-center text-xs font-bold text-white">
+                    {galleryViewer.index + 1} de {galleryViewer.images.length}
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Custom Order Callout Bar */}
         <div className="mt-14 p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-[#FFF0F4] via-[#FFEBF1] to-[#FFF0F4] border border-[#F8C8D8] flex flex-col md:flex-row items-center justify-between gap-6">

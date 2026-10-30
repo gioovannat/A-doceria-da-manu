@@ -616,6 +616,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
           {data.products
             .filter((p) => selectedCategoryFilter === 'all' || p.category === selectedCategoryFilter)
+            .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
             .map((prod) => {
             const numBatters = prod.batters?.length || 0;
             const numVariations = prod.variations?.length || 0;
@@ -680,7 +681,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                     <div className={`grid gap-2 mb-4 ${isCakeCategory ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
                       
                       {/* Massas exclusivo para bolos ou se configurado */}
-                      {(isCakeCategory || numBatters > 0) && (
+                      {(isCakeCategory || prod.requires_batter || numBatters > 0) && (
                         <button
                           type="button"
                           onClick={() => handleOpenEditProduct(prod, 'massas')}
@@ -801,7 +802,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
           <div className="flex items-center gap-1.5 p-1 bg-[#FFF0F4] rounded-2xl border border-[#FAD0DE] mb-6 overflow-x-auto">
             {[
               { id: 'geral', label: '1. Dados Gerais', icon: <Cake className="w-4 h-4" /> },
-              ...(editingProduct.category === 'bolos' || editingProduct.category === 'bento' || (editingProduct.batters && editingProduct.batters.length > 0) ? [
+              ...(editingProduct.category === 'bolos' || editingProduct.category === 'bento' || editingProduct.requires_batter || (editingProduct.batters && editingProduct.batters.length > 0) ? [
                 { id: 'massas', label: `2. Massas (${editingProduct.batters?.length || 0})`, icon: <Cake className="w-4 h-4 text-[#D81E5B]" /> }
               ] : []),
               { id: 'variacoes', label: `Tamanhos (${editingProduct.variations?.length || 0})`, icon: <Layers className="w-4 h-4" /> },
@@ -1049,7 +1050,19 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                       </label>
                       <select
                         value={editingProduct.requires_batter ? 'sim' : 'nao'}
-                        onChange={(e) => setEditingProduct({ ...editingProduct, requires_batter: e.target.value === 'sim' })}
+                        onChange={(e) => {
+                          const requiresBatter = e.target.value === 'sim';
+                          const currentBatters = editingProduct.batters || [];
+                          setEditingProduct({
+                            ...editingProduct,
+                            requires_batter: requiresBatter,
+                            // Ao ativar a escolha de massa, traz a lista geral já cadastrada.
+                            // O administrador ainda pode personalizá-la na aba Massas.
+                            batters: requiresBatter && currentBatters.length === 0
+                              ? [...customBattersList]
+                              : currentBatters,
+                          });
+                        }}
                         className="w-full text-xs p-2 rounded-lg border border-[#FAD0DE] bg-[#FFFDFC]"
                       >
                         <option value="sim">Sim (1 Massa Obrigatória)</option>
