@@ -20,7 +20,7 @@ const UNIT_ORDER_RULES: Record<string, { minimumQuantity: number; unitsInInitial
   'brownie-no-palito': { minimumQuantity: 1, unitsInInitialPrice: 1, singularUnit: 'unidade', pluralUnit: 'unidades' },
   'mini-neked-redondo': { minimumQuantity: 1, unitsInInitialPrice: 1, singularUnit: 'unidade', pluralUnit: 'unidades' },
   'bolo-de-corte': { minimumQuantity: 1, unitsInInitialPrice: 1, singularUnit: 'kg', pluralUnit: 'kg' },
-  'festinha-na-escola': { minimumQuantity: 10, unitsInInitialPrice: 1, singularUnit: 'kit', pluralUnit: 'kits' },
+  'festinha-na-escola': { minimumQuantity: 1, unitsInInitialPrice: 1, singularUnit: 'kit', pluralUnit: 'kits' },
   'marmita-completa': { minimumQuantity: 10, unitsInInitialPrice: 1, singularUnit: 'marmita', pluralUnit: 'marmitas' },
   'fatia-na-marmita': { minimumQuantity: 10, unitsInInitialPrice: 1, singularUnit: 'marmita', pluralUnit: 'marmitas' },
 };
@@ -309,8 +309,12 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
   const packagingExtra = selectedPackagingObj?.additional_price || 0;
   const addonTotal = (addon: Addon) => {
-    const isPersonalizedSticker = /adesivos?\s+personalizados?/i.test(addon.name);
-    return addon.price * (isUnitOrder && isPersonalizedSticker ? unitQuantity : 1);
+    // O cadastro usa "unidade" para itens que acompanham cada porção.
+    // O ID mantém a regra estável mesmo se o administrador renomear o adesivo.
+    const isPerUnitAddon = addon.unit === 'unidade'
+      || addon.id === 'add-adesivo-personalizado'
+      || /adesivos?\s+personalizados?/i.test(addon.name);
+    return Number(addon.price || 0) * (isUnitOrder && isPerUnitAddon ? unitQuantity : 1);
   };
   const addonsExtra = selectedAddons.reduce((acc, addName) => {
     const item = availableAddons.find((a) => a.name === addName);
