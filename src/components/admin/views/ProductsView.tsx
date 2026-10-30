@@ -1586,7 +1586,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
                     <Input
                       placeholder="Preço (R$)"
                       type="number"
-                      step="1"
+                      step="0.01"
                       value={newAddon.price || ''}
                       onChange={(e) => setNewAddon({ ...newAddon, price: parseFloat(e.target.value) || 0 })}
                     />
@@ -1662,7 +1662,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
               <Input
                 label="Preço (R$)"
                 type="number"
-                step="1"
+                step="0.01"
                 value={editingAddon.price || ''}
                 onChange={(e) => setEditingAddon({ ...editingAddon, price: parseFloat(e.target.value) || 0 })}
               />
@@ -1778,7 +1778,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Input label="Nome" value={editingGlobalAddon.name} onChange={(e) => setEditingGlobalAddon({ ...editingGlobalAddon, name: e.target.value })} />
-              <Input label="Preço (R$)" type="number" step="1" value={editingGlobalAddon.price || ''} onChange={(e) => setEditingGlobalAddon({ ...editingGlobalAddon, price: parseFloat(e.target.value) || 0 })} />
+              <Input label="Preço (R$)" type="number" step="0.01" value={editingGlobalAddon.price || ''} onChange={(e) => setEditingGlobalAddon({ ...editingGlobalAddon, price: parseFloat(e.target.value) || 0 })} />
               <Input label="Unidade" value={editingGlobalAddon.unit} onChange={(e) => setEditingGlobalAddon({ ...editingGlobalAddon, unit: e.target.value })} />
             </div>
             <Input label="Descrição" value={editingGlobalAddon.description || ''} onChange={(e) => setEditingGlobalAddon({ ...editingGlobalAddon, description: e.target.value })} />
@@ -1840,7 +1840,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({ data, onChange }) =>
               </h5>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Input label="Nome" placeholder="Ex: Topo personalizado" value={newGlobalAddon.name} onChange={(e) => setNewGlobalAddon({ ...newGlobalAddon, name: e.target.value })} />
-                <Input label="Preço (R$)" type="number" step="1" value={newGlobalAddon.price || ''} onChange={(e) => setNewGlobalAddon({ ...newGlobalAddon, price: parseFloat(e.target.value) || 0 })} />
+                <Input label="Preço (R$)" type="number" step="0.01" value={newGlobalAddon.price || ''} onChange={(e) => setNewGlobalAddon({ ...newGlobalAddon, price: parseFloat(e.target.value) || 0 })} />
                 <Input label="Unidade" placeholder="unidade, kit..." value={newGlobalAddon.unit} onChange={(e) => setNewGlobalAddon({ ...newGlobalAddon, unit: e.target.value })} />
               </div>
               <Input label="Descrição" placeholder="Ex: Nome e idade em acrílico ou papelaria" value={newGlobalAddon.description} onChange={(e) => setNewGlobalAddon({ ...newGlobalAddon, description: e.target.value })} />

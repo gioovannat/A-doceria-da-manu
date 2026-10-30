@@ -875,7 +875,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                         )}
                         <span className="text-left">{add.name}</span>
                       </div>
-                      <span className="font-bold">+R${addonTotal(add)}</span>
+                      <span className="font-bold">+R$ {addonTotal(add).toFixed(2).replace('.', ',')}</span>
                     </button>
                   );
                 })}
