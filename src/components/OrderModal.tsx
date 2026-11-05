@@ -20,6 +20,7 @@ const ADDONS_SOLD_BY_UNIT = new Set([
   'cerejas',
   'globo espelhado 3cm',
   'apliques de chocolate (15uni)',
+  'kg extra',
 ]);
 
 const normalizedAddonName = (name: string) =>
