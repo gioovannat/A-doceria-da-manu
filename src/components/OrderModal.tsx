@@ -20,6 +20,7 @@ const ADDONS_SOLD_BY_UNIT = new Set([
   'cerejas',
   'globo espelhado 3cm',
   'apliques de chocolate (15uni)',
+  'apliques de chocolate (15 uni)',
   'kg extra',
 ]);
 
