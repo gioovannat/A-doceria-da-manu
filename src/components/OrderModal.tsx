@@ -14,6 +14,18 @@ interface OrderModalProps {
 const sortByName = <T extends { name: string }>(items: T[]): T[] =>
   [...items].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
 
+const ADDONS_SOLD_BY_UNIT = new Set([
+  'lacinho de cetim',
+  'cerejas com glitter',
+  'cerejas',
+  'globo espelhado',
+]);
+
+const normalizedAddonName = (name: string) =>
+  name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pt-BR');
+
+const isAddonSoldByUnit = (addon: Addon) => ADDONS_SOLD_BY_UNIT.has(normalizedAddonName(addon.name));
+
 const UNIT_ORDER_RULES: Record<string, { minimumQuantity: number; unitsInInitialPrice: number; singularUnit: string; pluralUnit: string }> = {
   cupcakes: { minimumQuantity: 5, unitsInInitialPrice: 5, singularUnit: 'unidade', pluralUnit: 'unidades' },
   'brownie-recheado': { minimumQuantity: 1, unitsInInitialPrice: 1, singularUnit: 'unidade', pluralUnit: 'unidades' },
@@ -67,6 +79,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [selectedSalgadoFlavors, setSelectedSalgadoFlavors] = useState<string[]>([]);
   const [selectedPack, setSelectedPack] = useState<string>('');
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
+  const [addonQuantities, setAddonQuantities] = useState<Record<string, number>>({});
   const [servings, setServings] = useState<string>('');
   const [unitQuantity, setUnitQuantity] = useState(1);
   const [date, setDate] = useState<string>('');
@@ -264,6 +277,9 @@ export const OrderModal: React.FC<OrderModalProps> = ({
         ? [availableAddons[0].name]
         : valid;
     });
+    setAddonQuantities((previous) => Object.fromEntries(
+      Object.entries(previous).filter(([id]) => availableAddons.some((addon) => addon.id === id))
+    ));
   }, [category, isOpen, requiresBatter, requiresFlavors, requires2Flavors, requires3Flavors, minAddons, isSalgados, isUnitOrder, availableBatters, availableFlavors, availablePackaging, availableVariations, availableAddons]);
 
   useEffect(() => {
@@ -309,17 +325,23 @@ export const OrderModal: React.FC<OrderModalProps> = ({
 
   const packagingExtra = selectedPackagingObj?.additional_price || 0;
   const addonTotal = (addon: Addon) => {
-    // O cadastro usa "unidade" para itens que acompanham cada porção.
-    // O ID mantém a regra estável mesmo se o administrador renomear o adesivo.
-    const isPerUnitAddon = addon.unit === 'unidade'
-      || addon.id === 'add-adesivo-personalizado'
+    const isPersonalizedSticker = addon.id === 'add-adesivo-personalizado'
       || /adesivos?\s+personalizados?/i.test(addon.name);
-    return Number(addon.price || 0) * (isUnitOrder && isPerUnitAddon ? unitQuantity : 1);
+    const quantity = isAddonSoldByUnit(addon)
+      ? (addonQuantities[addon.id] || 1)
+      : (isUnitOrder && isPersonalizedSticker ? unitQuantity : 1);
+    return Number(addon.price || 0) * quantity;
   };
   const addonsExtra = selectedAddons.reduce((acc, addName) => {
     const item = availableAddons.find((a) => a.name === addName);
     return acc + (item ? addonTotal(item) : 0);
   }, 0);
+  const selectedAddonDetails = selectedAddons.map((addName) => {
+    const item = availableAddons.find((addon) => addon.name === addName);
+    if (!item || !isAddonSoldByUnit(item)) return addName;
+    const quantity = addonQuantities[item.id] || 1;
+    return `${addName} (${quantity} ${quantity === 1 ? 'unidade' : 'unidades'})`;
+  });
 
   // Contabilização de todo o conjunto no pedido final
   const estimatedTotal = basePrice + batterExtra + flavor1Extra + flavor2Extra + flavor3Extra + salgadosFlavorsExtra + packagingExtra + addonsExtra;
@@ -388,7 +410,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
           : (requiresFlavors && flavor1 ? `🍓 Recheio / sabor: ${flavor1 || 'Padrão'} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2).replace('.', ',')})` : '(incluso)'}\n` : '')
       ) +
       `📦 Embalagem: ${selectedPack || 'Padrão'} ${packagingExtra > 0 ? `(+R$ ${packagingExtra.toFixed(2).replace('.', ',')})` : '(inclusa)'}\n` +
-      (selectedAddons.length > 0 ? `✨ Adicionais: ${selectedAddons.join(', ')} (+R$ ${addonsExtra.toFixed(2).replace('.', ',')})\n` : '') +
+      (selectedAddons.length > 0 ? `✨ Adicionais: ${selectedAddonDetails.join(', ')} (+R$ ${addonsExtra.toFixed(2).replace('.', ',')})\n` : '') +
       `\n*AGENDA E RECEBIMENTO*\n` +
       `📅 Data do evento: ${date || 'A combinar'}\n` +
       `🚚 Retirada no ateliê ou envio por Uber Flash / 99 Entregas\n` +
@@ -409,7 +431,7 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       quantity: isUnitOrder ? quantityText : servings,
       flavors: isSalgados ? selectedSalgadoFlavors : [flavor1, flavor2, flavor3].slice(0, requiresFlavors ? requiredFlavorCount : 0),
       packaging: selectedPack,
-      addons: selectedAddons,
+      addons: selectedAddonDetails,
       date: date || 'A combinar',
       delivery_type: 'Retirada no Ateliê',
       location: 'Ateliê (Retirada própria ou Uber Flash / 99 Entregas)',
@@ -856,23 +878,35 @@ export const OrderModal: React.FC<OrderModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                 {availableAddons.map((add) => {
                   const isChecked = selectedAddons.includes(add.name);
+                  const isSoldByUnit = isAddonSoldByUnit(add);
+                  const addonQuantity = addonQuantities[add.id] || 1;
                   return (
-                    <button
+                    <div
                       key={add.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedAddons((prev) =>
-                          isChecked ? prev.filter((a) => a !== add.name) : [...prev, add.name]
-                        );
-                      }}
                       className={`p-2.5 rounded-xl border text-xs font-medium flex items-center justify-between cursor-pointer transition-colors ${
                         isChecked
                           ? 'bg-[#FFF0F4] border-[#D81E5B] text-[#D81E5B] shadow-2xs font-semibold'
                           : 'bg-white border-[#FAD0DE] text-[#6B4651] hover:border-[#D81E5B]'
                       }`}
                     >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Check className={`w-3.5 h-3.5 ${isChecked ? 'opacity-100 text-[#D81E5B]' : 'opacity-0'}`} />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedAddons((prev) =>
+                            isChecked ? prev.filter((a) => a !== add.name) : [...prev, add.name]
+                          );
+                          if (isChecked) {
+                            setAddonQuantities((prev) => {
+                              const { [add.id]: _, ...remaining } = prev;
+                              return remaining;
+                            });
+                          } else if (isSoldByUnit) {
+                            setAddonQuantities((prev) => ({ ...prev, [add.id]: prev[add.id] || 1 }));
+                          }
+                        }}
+                        className="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer"
+                      >
+                        <Check className={`w-3.5 h-3.5 shrink-0 ${isChecked ? 'opacity-100 text-[#D81E5B]' : 'opacity-0'}`} />
                         {add.image && (
                           <img
                             src={add.image}
@@ -880,10 +914,40 @@ export const OrderModal: React.FC<OrderModalProps> = ({
                             className="w-9 h-9 rounded-lg object-cover shrink-0 border border-[#FAD0DE]"
                           />
                         )}
-                        <span className="text-left">{add.name}</span>
+                        <span>{add.name}</span>
+                      </button>
+
+                      <div className="ml-2 shrink-0 text-right">
+                        <span className="font-bold block">+R$ {addonTotal(add).toFixed(2).replace('.', ',')}</span>
+                        {isChecked && isSoldByUnit && (
+                          <div className="mt-1.5 flex items-center rounded-lg border border-[#FAD0DE] bg-white overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={() => setAddonQuantities((prev) => ({
+                                ...prev,
+                                [add.id]: Math.max(1, addonQuantity - 1),
+                              }))}
+                              disabled={addonQuantity <= 1}
+                              className="w-7 h-6 text-base font-bold text-[#D81E5B] hover:bg-[#FFF0F4] disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer"
+                              aria-label={`Diminuir quantidade de ${add.name}`}
+                            >
+                              −
+                            </button>
+                            <output className="w-7 text-center text-[11px] font-bold text-[#3D1E26]" aria-label={`Quantidade de ${add.name}`}>
+                              {addonQuantity}
+                            </output>
+                            <button
+                              type="button"
+                              onClick={() => setAddonQuantities((prev) => ({ ...prev, [add.id]: addonQuantity + 1 }))}
+                              className="w-7 h-6 text-base font-bold text-[#D81E5B] hover:bg-[#FFF0F4] cursor-pointer"
+                              aria-label={`Aumentar quantidade de ${add.name}`}
+                            >
+                              +
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <span className="font-bold">+R$ {addonTotal(add).toFixed(2).replace('.', ',')}</span>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
