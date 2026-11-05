@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { AppDatabase, OrderEvent } from '../../../types';
+import { Addon, AppDatabase, OrderEvent } from '../../../types';
 import { Card } from '../../ui/Card';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { Button } from '../../ui/Button';
 import { Badge } from '../../ui/Badge';
 import { Textarea } from '../../ui/Textarea';
-import { MessageCircle, Calendar, DollarSign, Send, Trash2, CheckCircle2, User, MapPin } from 'lucide-react';
+import { MessageCircle, Calendar, DollarSign, Send, Trash2, CheckCircle2, User, MapPin, Check } from 'lucide-react';
 import { generateWhatsAppUrl } from '../../../lib/whatsapp';
 import { useToast } from '../../ui/Toast';
 
@@ -14,6 +14,21 @@ interface OrdersViewProps {
   data: AppDatabase;
   onChange: (updater: (prev: AppDatabase) => AppDatabase) => void;
 }
+
+const ADDONS_SOLD_BY_UNIT = new Set([
+  'lacinho de cetim',
+  'cerejas com glitter',
+  'cerejas',
+  'globo espelhado 3cm',
+  'apliques de chocolate (15uni)',
+  'apliques de chocolate (15 uni)',
+  'kg extra',
+]);
+
+const normalizedAddonName = (name: string) =>
+  name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLocaleLowerCase('pt-BR');
+
+const isAddonSoldByUnit = (addon: Addon) => ADDONS_SOLD_BY_UNIT.has(normalizedAddonName(addon.name));
 
 export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
   const { orders, products, flavors, packaging, addons, settings } = data;
@@ -27,6 +42,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
   const [selectedFlavor2, setSelectedFlavor2] = useState(flavors[1]?.name || flavors[0]?.name || '');
   const [selectedPackaging, setSelectedPackaging] = useState(packaging[0]?.name || '');
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
+  const [addonQuantities, setAddonQuantities] = useState<Record<string, number>>({});
   const [customNotes, setCustomNotes] = useState('');
   const [deliveryType, setDeliveryType] = useState('Retirada no Ateliê');
   const [date, setDate] = useState('');
@@ -37,7 +53,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
   const prodBatters = currentProd?.batters || [];
   const prodFlavors = (currentProd?.flavors && currentProd.flavors.length > 0) ? currentProd.flavors : flavors;
   const prodPackaging = (currentProd?.packaging && currentProd.packaging.length > 0) ? currentProd.packaging : packaging;
-  const prodAddons = (currentProd?.addons && currentProd.addons.length > 0) ? currentProd.addons : addons;
+  const prodAddons = (Array.isArray(currentProd?.addons) ? currentProd.addons : addons).filter((addon) => addon.active);
 
   const currentBatter = prodBatters.find((b) => b.name === selectedBatter);
   const currentFlav1 = prodFlavors.find((f) => f.name === selectedFlavor);
@@ -49,10 +65,17 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
   const flavPrice1 = currentFlav1?.additional_price || 0;
   const flavPrice2 = isCakeProd ? (currentFlav2?.additional_price || 0) : 0;
   const packPrice = currentPack?.additional_price || 0;
+  const addonTotal = (addon: Addon) => Number(addon.price || 0) * (isAddonSoldByUnit(addon) ? (addonQuantities[addon.id] || 1) : 1);
   const addonsPrice = selectedAddons.reduce((acc, addName) => {
     const item = prodAddons.find((a) => a.name === addName);
-    return acc + (item?.price || 0);
+    return acc + (item ? addonTotal(item) : 0);
   }, 0);
+  const selectedAddonDetails = selectedAddons.map((addName) => {
+    const item = prodAddons.find((addon) => addon.name === addName);
+    if (!item || !isAddonSoldByUnit(item)) return addName;
+    const quantity = addonQuantities[item.id] || 1;
+    return `${addName} (${quantity} ${quantity === 1 ? 'unidade' : 'unidades'})`;
+  });
 
   const estimatedTotal = basePrice + batterPrice + flavPrice1 + flavPrice2 + packPrice + addonsPrice;
 
@@ -67,7 +90,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
         : `🍓 *Recheio:* ${selectedFlavor}\n`
       ) +
       `📦 *Embalagem:* ${selectedPackaging}\n` +
-      (selectedAddons.length > 0 ? `✨ *Adicionais (Obrigatório mín. 1):* ${selectedAddons.join(', ')}\n` : '') +
+      (selectedAddons.length > 0 ? `✨ *Adicionais:* ${selectedAddonDetails.join(', ')}\n` : '') +
       `📅 *Data desejada:* ${date || 'A combinar'}\n` +
       `🚚 *Modalidade:* ${deliveryType}\n` +
       (customNotes ? `📝 *Observações:* ${customNotes}\n` : '') +
@@ -87,7 +110,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
       quantity: '1',
       flavors: isCakeProd ? [selectedFlavor, selectedFlavor2] : [selectedFlavor],
       packaging: selectedPackaging,
-      addons: selectedAddons,
+      addons: selectedAddonDetails,
       date: date || 'A combinar',
       delivery_type: deliveryType,
       notes: customNotes,
@@ -135,6 +158,8 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
               onChange={(e) => {
                 const prodName = e.target.value;
                 setSelectedProduct(prodName);
+                setSelectedAddons([]);
+                setAddonQuantities({});
                 const p = products.find(x => x.name === prodName);
                 if (p?.batters && p.batters.length > 0) setSelectedBatter(p.batters[0].name);
                 if (p?.flavors && p.flavors.length > 1) setSelectedFlavor2(p.flavors[1].name);
@@ -219,31 +244,55 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
           </div>
 
           {/* Adicionais checkboxes */}
-          <div>
+          <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-2.5">
             <label className="text-xs font-bold text-[#3D1E26] uppercase tracking-wider block mb-2">
               Adicionais & Opcionais
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+            <p className="text-[11px] text-[#7A505D]">Selecione os adicionais cadastrados para este produto. Itens vendidos por unidade exibem a quantidade automaticamente.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               {prodAddons.map((add) => {
                 const isChecked = selectedAddons.includes(add.name);
+                const isSoldByUnit = isAddonSoldByUnit(add);
+                const addonQuantity = addonQuantities[add.id] || 1;
                 return (
-                  <button
+                  <div
                     key={add.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedAddons((prev) =>
-                        isChecked ? prev.filter((n) => n !== add.name) : [...prev, add.name]
-                      );
-                    }}
-                    className={`p-3 rounded-xl border text-xs font-medium text-left flex items-center justify-between gap-2 transition-all cursor-pointer ${
+                    className={`p-2.5 rounded-xl border text-xs font-medium flex items-center justify-between transition-colors ${
                       isChecked
-                        ? 'bg-[#FFF0F4] border-[#D81E5B] text-[#D81E5B]'
-                        : 'bg-white border-[#FAD0DE] text-[#6B4651]'
+                        ? 'bg-[#FFF0F4] border-[#D81E5B] text-[#D81E5B] shadow-2xs font-semibold'
+                        : 'bg-white border-[#FAD0DE] text-[#6B4651] hover:border-[#D81E5B]'
                     }`}
                   >
-                    <span>{add.name}</span>
-                    <span className="font-bold">+R${add.price}</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedAddons((prev) => isChecked ? prev.filter((name) => name !== add.name) : [...prev, add.name]);
+                        if (isChecked) {
+                          setAddonQuantities((prev) => {
+                            const { [add.id]: _, ...remaining } = prev;
+                            return remaining;
+                          });
+                        } else if (isSoldByUnit) {
+                          setAddonQuantities((prev) => ({ ...prev, [add.id]: prev[add.id] || 1 }));
+                        }
+                      }}
+                      className="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer"
+                    >
+                      <Check className={`w-3.5 h-3.5 shrink-0 ${isChecked ? 'opacity-100 text-[#D81E5B]' : 'opacity-0'}`} />
+                      {add.image && <img src={add.image} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0 border border-[#FAD0DE]" />}
+                      <span>{add.name}</span>
+                    </button>
+                    <div className="ml-2 shrink-0 text-right">
+                      <span className="font-bold block">+R$ {addonTotal(add).toFixed(2).replace('.', ',')}</span>
+                      {isChecked && isSoldByUnit && (
+                        <div className="mt-1.5 flex items-center rounded-lg border border-[#FAD0DE] bg-white overflow-hidden">
+                          <button type="button" onClick={() => setAddonQuantities((prev) => ({ ...prev, [add.id]: Math.max(1, addonQuantity - 1) }))} disabled={addonQuantity <= 1} className="w-7 h-6 text-base font-bold text-[#D81E5B] hover:bg-[#FFF0F4] disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer" aria-label={`Diminuir quantidade de ${add.name}`}>−</button>
+                          <output className="w-7 text-center text-[11px] font-bold text-[#3D1E26]" aria-label={`Quantidade de ${add.name}`}>{addonQuantity}</output>
+                          <button type="button" onClick={() => setAddonQuantities((prev) => ({ ...prev, [add.id]: addonQuantity + 1 }))} className="w-7 h-6 text-base font-bold text-[#D81E5B] hover:bg-[#FFF0F4] cursor-pointer" aria-label={`Aumentar quantidade de ${add.name}`}>+</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 );
               })}
             </div>
