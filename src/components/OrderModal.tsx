@@ -18,7 +18,7 @@ const ADDONS_SOLD_BY_UNIT = new Set([
   'lacinho de cetim',
   'cerejas com glitter',
   'cerejas',
-  'globo espelhado',
+  'globo espelhado 3cm',
 ]);
 
 const normalizedAddonName = (name: string) =>
