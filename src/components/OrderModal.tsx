@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, MessageCircle, Sparkles, Check, Calendar, Cake, Heart, Box, Gift, Layers, AlertCircle, Info } from 'lucide-react';
+import { X, MessageCircle, Sparkles, Check, Calendar, Cake, Heart, Box, Gift, Layers, AlertCircle, Info, ShoppingBag, Trash2, Plus } from 'lucide-react';
 import { store } from '../lib/store';
 import { AppDatabase, Product, Flavor, PackagingOption, Addon, ProductVariation, CakeBatter } from '../types';
 
@@ -10,6 +10,20 @@ interface OrderModalProps {
   initialFlavor?: string;
   data?: AppDatabase;
 }
+
+interface CartOrderItem {
+  id: string;
+  productName: string;
+  quantity: string;
+  batter?: string;
+  flavors: string[];
+  packaging: string;
+  addons: string[];
+  notes: string;
+  estimatedTotal: number;
+}
+
+const CART_STORAGE_KEY = 'doceria-manu-order-cart';
 
 const sortByName = <T extends { name: string }>(items: T[]): T[] =>
   [...items].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }));
@@ -91,6 +105,23 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   const [acceptedPaymentTerms, setAcceptedPaymentTerms] = useState(false);
   const [deliveryType] = useState<'retirada'>('retirada');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [cart, setCart] = useState<CartOrderItem[]>(() => {
+    try {
+      const saved = window.localStorage.getItem(CART_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      if (cart.length > 0) window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+      else window.localStorage.removeItem(CART_STORAGE_KEY);
+    } catch {
+      // O pedido continua funcional mesmo se o navegador bloquear o armazenamento local.
+    }
+  }, [cart]);
 
   // Find the selected product object
   const selectedProductObj: Product | undefined = products.find((p) => p.name === category)
@@ -349,6 +380,58 @@ export const OrderModal: React.FC<OrderModalProps> = ({
   // Contabilização de todo o conjunto no pedido final
   const estimatedTotal = basePrice + batterExtra + flavor1Extra + flavor2Extra + flavor3Extra + salgadosFlavorsExtra + packagingExtra + addonsExtra;
 
+  const validateCurrentSelection = () => {
+    setValidationError(null);
+
+    if (isSalgados && selectedSalgadoFlavors.length === 0) {
+      setValidationError('Selecione pelo menos um sabor para os salgados antes de adicionar o item.');
+      return false;
+    }
+
+    if (!isSalgados && requiresBatter && !batter.trim()) {
+      setValidationError('Selecione o tipo de massa antes de adicionar o item.');
+      return false;
+    }
+
+    const requiredFlavors = [flavor1, flavor2, flavor3].slice(0, requiredFlavorCount);
+    if (!isSalgados && requiresFlavors && requiredFlavors.some((flavor) => !flavor.trim())) {
+      setValidationError(`Selecione os ${requiredFlavorCount} recheio${requiredFlavorCount === 1 ? '' : 's'} antes de adicionar o item.`);
+      return false;
+    }
+
+    if (minAddons > 0 && selectedAddons.length < minAddons) {
+      setValidationError(`Selecione no mínimo ${minAddons} adicional${minAddons === 1 ? '' : 'is'} antes de adicionar o item.`);
+      return false;
+    }
+
+    return true;
+  };
+
+  const buildCurrentCartItem = (): CartOrderItem => ({
+    id: `cart-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    productName: category,
+    quantity: isUnitOrder ? quantityText : (servings || 'Padrão'),
+    batter: !isSalgados ? batter || undefined : undefined,
+    flavors: isSalgados
+      ? selectedSalgadoFlavors
+      : [flavor1, flavor2, flavor3].slice(0, requiresFlavors ? requiredFlavorCount : 0).filter(Boolean),
+    packaging: selectedPack || 'Padrão',
+    addons: selectedAddonDetails,
+    notes,
+    estimatedTotal,
+  });
+
+  const handleAddToCart = () => {
+    if (!validateCurrentSelection()) return;
+    setCart((previous) => [...previous, buildCurrentCartItem()]);
+    setSelectedAddons([]);
+    setAddonQuantities({});
+    setNotes('');
+    setValidationError(null);
+  };
+
+  const cartTotal = cart.reduce((total, item) => total + item.estimatedTotal, 0);
+
   const handleSendWhatsApp = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
@@ -358,69 +441,41 @@ export const OrderModal: React.FC<OrderModalProps> = ({
       return;
     }
 
-    // Validações obrigatórias
-    if (isSalgados) {
-      if (selectedSalgadoFlavors.length === 0) {
-        setValidationError('Por favor, selecione obrigatoriamente pelo menos 1 opção de sabor para os seus salgados artesanais na caixa de seleção (sem limite máximo).');
-        return;
-      }
-    } else {
-      if (requiresBatter && (!batter || batter.trim() === '')) {
-        setValidationError('Por favor, selecione obrigatoriamente o tipo de massa do seu bolo.');
-        return;
-      }
-
-      const requiredFlavors = [flavor1, flavor2, flavor3].slice(0, requiredFlavorCount);
-      if (requiresFlavors && requiredFlavors.some((flavor) => !flavor.trim())) {
-        setValidationError(`Por favor, selecione obrigatoriamente ${requiredFlavorCount} ${requiredFlavorCount === 1 ? 'recheio' : 'tipos de recheio'}.`);
-        return;
-      }
-    }
-
-    if (minAddons > 0 && selectedAddons.length < minAddons) {
-      setValidationError(`Por favor, selecione no mínimo ${minAddons} adicional/opcional para compor o seu bolo (ex: topo de bolo personalizado, morangos, confeitos ou velas).`);
-      return;
-    }
+    const itemsToSend = cart.length > 0 ? cart : (validateCurrentSelection() ? [buildCurrentCartItem()] : []);
+    if (itemsToSend.length === 0) return;
 
     if (!acceptedPaymentTerms) {
       setValidationError('Confirme que está ciente de que o pedido só é confirmado após o pagamento de 50% do valor dos itens.');
       return;
     }
 
-    const depositAmount = estimatedTotal / 2;
-    const remainingAmount = estimatedTotal - depositAmount;
+    const orderTotal = itemsToSend.reduce((total, item) => total + item.estimatedTotal, 0);
+    const depositAmount = orderTotal / 2;
+    const remainingAmount = orderTotal - depositAmount;
+    const itemsMessage = itemsToSend.map((item, index) =>
+      `*ITEM ${index + 1}*\n` +
+      `🎂 ${item.productName}\n` +
+      `👥 Quantidade / tamanho: ${item.quantity}\n` +
+      (item.batter ? `🍰 Massa: ${item.batter}\n` : '') +
+      (item.flavors.length > 0 ? `🍓 Sabores / recheios: ${item.flavors.join(', ')}\n` : '') +
+      `📦 Embalagem: ${item.packaging}\n` +
+      (item.addons.length > 0 ? `✨ Adicionais: ${item.addons.join(', ')}\n` : '') +
+      (item.notes ? `📝 Detalhes: ${item.notes}\n` : '') +
+      `💰 Subtotal: *R$ ${item.estimatedTotal.toFixed(2).replace('.', ',')}*`
+    ).join('\n\n━━━━━━━━━━━━━━━━━━━━\n\n');
 
     const formattedMessage = 
       `*NOVO PEDIDO — A DOCERIA DA MANU*\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `Olá, ${settings.short_name}! Gostaria de verificar a disponibilidade para este pedido.\n\n` +
       `*CLIENTE*\n👤 ${customerName.trim()}\n\n` +
-      `*PRODUTO*\n` +
-      `🎂 ${category}\n` +
-      (isUnitOrder
-        ? `👥 Quantidade: ${quantityText} (R$ ${basePrice.toFixed(2).replace('.', ',')})\n`
-        : `👥 Tamanho / porção: ${servings || 'Padrão'} (R$ ${basePrice.toFixed(2).replace('.', ',')})\n`) +
-      (batter && !isSalgados ? `🍰 Massa: ${batter} ${batterExtra > 0 ? `(+R$ ${batterExtra.toFixed(2).replace('.', ',')})` : '(inclusa)'}\n` : '') +
-      (isSalgados
-        ? `🥟 Sabores: ${selectedSalgadoFlavors.join(', ')} ${salgadosFlavorsExtra > 0 ? `(+R$ ${salgadosFlavorsExtra.toFixed(2).replace('.', ',')})` : '(inclusos)'}\n`
-        : requires3Flavors
-          ? `🍓 1º recheio: ${flavor1} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2).replace('.', ',')})` : '(incluso)'}\n` +
-            `🍫 2º recheio: ${flavor2} ${flavor2Extra > 0 ? `(+R$ ${flavor2Extra.toFixed(2).replace('.', ',')})` : '(incluso)'}\n` +
-            `🍰 3º recheio: ${flavor3} ${flavor3Extra > 0 ? `(+R$ ${flavor3Extra.toFixed(2).replace('.', ',')})` : '(incluso)'}\n`
-          : requires2Flavors
-          ? `🍓 1º recheio: ${flavor1} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2).replace('.', ',')})` : '(incluso)'}\n` +
-            `🍫 2º recheio: ${flavor2} ${flavor2Extra > 0 ? `(+R$ ${flavor2Extra.toFixed(2).replace('.', ',')})` : '(incluso)'}\n`
-          : (requiresFlavors && flavor1 ? `🍓 Recheio / sabor: ${flavor1 || 'Padrão'} ${flavor1Extra > 0 ? `(+R$ ${flavor1Extra.toFixed(2).replace('.', ',')})` : '(incluso)'}\n` : '')
-      ) +
-      `📦 Embalagem: ${selectedPack || 'Padrão'} ${packagingExtra > 0 ? `(+R$ ${packagingExtra.toFixed(2).replace('.', ',')})` : '(inclusa)'}\n` +
-      (selectedAddons.length > 0 ? `✨ Adicionais: ${selectedAddonDetails.join(', ')} (+R$ ${addonsExtra.toFixed(2).replace('.', ',')})\n` : '') +
+      `*ITENS DO PEDIDO*\n${itemsMessage}\n` +
       `\n*AGENDA E RECEBIMENTO*\n` +
       `📅 Data do evento: ${date || 'A combinar'}\n` +
       `🚚 Retirada no ateliê ou envio por Uber Flash / 99 Entregas\n` +
-      (notes ? `📝 Detalhes: ${notes}\n` : '') +
       `\n━━━━━━━━━━━━━━━━━━━━\n` +
       `*RESUMO DE VALORES*\n` +
-      `💰 Total estimado: *R$ ${estimatedTotal.toFixed(2).replace('.', ',')}*\n` +
+      `💰 Total estimado: *R$ ${orderTotal.toFixed(2).replace('.', ',')}*\n` +
       `✅ Sinal para confirmar (50%): *R$ ${depositAmount.toFixed(2).replace('.', ',')}*\n` +
       `Saldo na retirada/entrega: R$ ${remainingAmount.toFixed(2).replace('.', ',')}\n\n` +
       `☑️ Cliente ciente: o pedido só é confirmado após o pagamento de 50% do valor dos itens.\n\n` +
@@ -429,22 +484,23 @@ export const OrderModal: React.FC<OrderModalProps> = ({
     // Record order in store
     store.recordOrder({
       customer_name: customerName.trim(),
-      product_name: category,
-      batter: !isSalgados ? batter : undefined,
-      quantity: isUnitOrder ? quantityText : servings,
-      flavors: isSalgados ? selectedSalgadoFlavors : [flavor1, flavor2, flavor3].slice(0, requiresFlavors ? requiredFlavorCount : 0),
-      packaging: selectedPack,
-      addons: selectedAddonDetails,
+      product_name: itemsToSend.length === 1 ? itemsToSend[0].productName : `${itemsToSend.length} itens no carrinho`,
+      batter: itemsToSend.length === 1 ? itemsToSend[0].batter : undefined,
+      quantity: itemsToSend.map((item) => item.quantity).join(' | '),
+      flavors: itemsToSend.flatMap((item) => item.flavors),
+      packaging: itemsToSend.map((item) => item.packaging).join(' | '),
+      addons: itemsToSend.flatMap((item) => item.addons),
       date: date || 'A combinar',
       delivery_type: 'Retirada no Ateliê',
       location: 'Ateliê (Retirada própria ou Uber Flash / 99 Entregas)',
-      notes: notes,
-      estimated_total: estimatedTotal,
+      notes: itemsToSend.map((item) => item.notes).filter(Boolean).join(' | '),
+      estimated_total: orderTotal,
       formatted_message: formattedMessage,
     });
 
     const targetUrl = `https://wa.me/${settings.whatsapp_number}?text=${encodeURIComponent(formattedMessage)}`;
     window.open(targetUrl, '_blank');
+    setCart([]);
     onClose();
   };
 
@@ -1016,6 +1072,36 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             )}
           </div>
 
+          {cart.length > 0 && (
+            <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#3D1E26] uppercase tracking-wider">
+                  <ShoppingBag className="w-3.5 h-3.5 text-[#D81E5B]" />
+                  Carrinho ({cart.length} {cart.length === 1 ? 'item' : 'itens'})
+                </div>
+                <span className="text-xs font-extrabold text-[#D81E5B]">R$ {cartTotal.toFixed(2).replace('.', ',')}</span>
+              </div>
+              <div className="space-y-2">
+                {cart.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-white border border-[#FAD0DE] px-3 py-2.5 text-xs">
+                    <div className="min-w-0">
+                      <p className="font-bold text-[#3D1E26] truncate">{item.productName}</p>
+                      <p className="text-[11px] text-[#7A505D]">{item.quantity} · R$ {item.estimatedTotal.toFixed(2).replace('.', ',')}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCart((previous) => previous.filter((cartItem) => cartItem.id !== item.id))}
+                      className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 hover:text-rose-700 cursor-pointer"
+                      aria-label={`Remover ${item.productName} do carrinho`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <label className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-colors ${
             acceptedPaymentTerms ? 'bg-emerald-50 border-emerald-200' : 'bg-[#FFF9FB] border-[#FAD0DE] hover:bg-[#FFF5F8]'
           }`}>
@@ -1139,16 +1225,24 @@ export const OrderModal: React.FC<OrderModalProps> = ({
             </div>
           </div>
 
-          {/* Action button: Send to WhatsApp */}
-          <div className="pt-1">
+          {/* Action buttons: cart or send to WhatsApp */}
+          <div className="pt-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              className="w-full py-3.5 px-6 rounded-2xl bg-[#FFF0F5] hover:bg-[#FAD6E2] text-[#B8134B] font-bold text-sm border border-[#F3B5C9] transition-all duration-200 flex items-center justify-center gap-2.5 cursor-pointer active:scale-98"
+            >
+              <Plus className="w-5 h-5" />
+              <span>Adicionar ao carrinho</span>
+            </button>
             <button
               type="submit"
               className="w-full py-3.5 px-6 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-sm shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2.5 cursor-pointer active:scale-98"
             >
               <MessageCircle className="w-5 h-5 fill-white" />
-              <span>Enviar Pedido para o WhatsApp</span>
+              <span>{cart.length > 0 ? `Enviar carrinho (${cart.length})` : 'Enviar Pedido para o WhatsApp'}</span>
             </button>
-            <p className="text-[11px] text-[#8C5D6C] text-center mt-2">
+            <p className="text-[11px] text-[#8C5D6C] text-center sm:col-span-2">
               Mensagem formatada e pronta para envio no WhatsApp!
             </p>
           </div>
