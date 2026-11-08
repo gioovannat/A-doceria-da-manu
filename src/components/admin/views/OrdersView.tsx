@@ -40,6 +40,8 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
   const [selectedBatter, setSelectedBatter] = useState('');
   const [selectedFlavor, setSelectedFlavor] = useState(flavors[0]?.name || '');
   const [selectedFlavor2, setSelectedFlavor2] = useState(flavors[1]?.name || flavors[0]?.name || '');
+  const [selectedFlavor3, setSelectedFlavor3] = useState(flavors[2]?.name || flavors[0]?.name || '');
+  const [selectedSalgadoFlavors, setSelectedSalgadoFlavors] = useState<string[]>([]);
   const [selectedPackaging, setSelectedPackaging] = useState(packaging[0]?.name || '');
   const [selectedAddons, setSelectedAddons] = useState<string[]>([]);
   const [addonQuantities, setAddonQuantities] = useState<Record<string, number>>({});
@@ -50,20 +52,27 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
   // Calculate quick estimate
   const currentProd = products.find((p) => p.name === selectedProduct);
   const isCakeProd = currentProd?.category === 'bolos' || currentProd?.requires_batter;
+  const isSalgados = currentProd?.category === 'salgados' || currentProd?.slug === 'salgados';
   const prodBatters = currentProd?.batters || [];
-  const prodFlavors = (currentProd?.flavors && currentProd.flavors.length > 0) ? currentProd.flavors : flavors;
+  const prodFlavors = ((currentProd?.flavors && currentProd.flavors.length > 0) ? currentProd.flavors : flavors).filter((flavor) => flavor.active);
   const prodPackaging = (currentProd?.packaging && currentProd.packaging.length > 0) ? currentProd.packaging : packaging;
   const prodAddons = (Array.isArray(currentProd?.addons) ? currentProd.addons : addons).filter((addon) => addon.active);
 
   const currentBatter = prodBatters.find((b) => b.name === selectedBatter);
   const currentFlav1 = prodFlavors.find((f) => f.name === selectedFlavor);
   const currentFlav2 = prodFlavors.find((f) => f.name === selectedFlavor2);
+  const currentFlav3 = prodFlavors.find((f) => f.name === selectedFlavor3);
   const currentPack = prodPackaging.find((p) => p.name === selectedPackaging);
 
   const basePrice = currentProd?.starting_price || 0;
   const batterPrice = currentBatter?.additional_price || 0;
-  const flavPrice1 = currentFlav1?.additional_price || 0;
-  const flavPrice2 = isCakeProd ? (currentFlav2?.additional_price || 0) : 0;
+  const requiredFlavorCount = isSalgados ? 0 : (currentProd?.min_flavors ?? (isCakeProd ? 2 : 1));
+  const flavPrice1 = !isSalgados && requiredFlavorCount >= 1 ? (currentFlav1?.additional_price || 0) : 0;
+  const flavPrice2 = !isSalgados && requiredFlavorCount >= 2 ? (currentFlav2?.additional_price || 0) : 0;
+  const flavPrice3 = !isSalgados && requiredFlavorCount >= 3 ? (currentFlav3?.additional_price || 0) : 0;
+  const salgadosFlavorsPrice = isSalgados
+    ? selectedSalgadoFlavors.reduce((total, flavorName) => total + (prodFlavors.find((flavor) => flavor.name === flavorName)?.additional_price || 0), 0)
+    : 0;
   const packPrice = currentPack?.additional_price || 0;
   const addonTotal = (addon: Addon) => Number(addon.price || 0) * (isAddonSoldByUnit(addon) ? (addonQuantities[addon.id] || 1) : 1);
   const addonsPrice = selectedAddons.reduce((acc, addName) => {
@@ -77,17 +86,20 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
     return `${addName} (${quantity} ${quantity === 1 ? 'unidade' : 'unidades'})`;
   });
 
-  const estimatedTotal = basePrice + batterPrice + flavPrice1 + flavPrice2 + packPrice + addonsPrice;
+  const estimatedTotal = basePrice + batterPrice + flavPrice1 + flavPrice2 + flavPrice3 + salgadosFlavorsPrice + packPrice + addonsPrice;
 
   const handleGenerateQuoteMessage = () => {
     const message = 
       `Olá, ${clientName || 'Cliente'}! Segue a prévia do seu orçamento da *${settings.company_name}*:\n\n` +
       `🎂 *Item:* ${selectedProduct}\n` +
       (selectedBatter ? `🍰 *Tipo de Massa (Obrigatório):* ${selectedBatter}\n` : '') +
-      (isCakeProd
-        ? `🍓 *1º Recheio (Obrigatório):* ${selectedFlavor}\n` +
-          `🍫 *2º Recheio (Obrigatório):* ${selectedFlavor2}\n`
-        : `🍓 *Recheio:* ${selectedFlavor}\n`
+      (isSalgados
+        ? `🥟 *Recheio / Sabores dos Salgados:* ${selectedSalgadoFlavors.join(', ') || 'A definir'}\n`
+        : requiredFlavorCount >= 3
+          ? `🍓 *1º Recheio:* ${selectedFlavor}\n🍫 *2º Recheio:* ${selectedFlavor2}\n🍰 *3º Recheio:* ${selectedFlavor3}\n`
+          : requiredFlavorCount >= 2
+            ? `🍓 *1º Recheio:* ${selectedFlavor}\n🍫 *2º Recheio:* ${selectedFlavor2}\n`
+            : requiredFlavorCount === 1 ? `🍓 *Recheio:* ${selectedFlavor}\n` : ''
       ) +
       `📦 *Embalagem:* ${selectedPackaging}\n` +
       (selectedAddons.length > 0 ? `✨ *Adicionais:* ${selectedAddonDetails.join(', ')}\n` : '') +
@@ -108,7 +120,9 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
       product_name: selectedProduct,
       batter: selectedBatter,
       quantity: '1',
-      flavors: isCakeProd ? [selectedFlavor, selectedFlavor2] : [selectedFlavor],
+      flavors: isSalgados
+        ? selectedSalgadoFlavors
+        : [selectedFlavor, selectedFlavor2, selectedFlavor3].slice(0, requiredFlavorCount),
       packaging: selectedPackaging,
       addons: selectedAddonDetails,
       date: date || 'A combinar',
@@ -162,7 +176,11 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
                 setAddonQuantities({});
                 const p = products.find(x => x.name === prodName);
                 if (p?.batters && p.batters.length > 0) setSelectedBatter(p.batters[0].name);
-                if (p?.flavors && p.flavors.length > 1) setSelectedFlavor2(p.flavors[1].name);
+                const activeFlavors = (p?.flavors || []).filter((flavor) => flavor.active);
+                setSelectedFlavor(activeFlavors[0]?.name || '');
+                setSelectedFlavor2(activeFlavors[1]?.name || activeFlavors[0]?.name || '');
+                setSelectedFlavor3(activeFlavors[2]?.name || activeFlavors[0]?.name || '');
+                setSelectedSalgadoFlavors(p?.category === 'salgados' ? activeFlavors.slice(0, 2).map((flavor) => flavor.name) : []);
               }}
               options={products.map((p) => ({ value: p.name, label: `${p.name} (R$ ${p.starting_price})` }))}
             />
@@ -177,7 +195,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
                   label: b.additional_price && b.additional_price > 0 ? `${b.name} (+R$ ${b.additional_price})` : `${b.name} (Inclusa)`,
                 }))}
               />
-            ) : (
+            ) : !isSalgados && requiredFlavorCount > 0 ? (
               <Select
                 label="Sabor de Recheio"
                 value={selectedFlavor}
@@ -187,11 +205,11 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
                   label: f.additional_price > 0 ? `${f.name} (+R$ ${f.additional_price})` : f.name,
                 }))}
               />
-            )}
+            ) : null}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {prodBatters.length > 0 ? (
+            {prodBatters.length > 0 && requiredFlavorCount > 0 ? (
               <>
                 <Select
                   label="1º Recheio (Obrigatório)"
@@ -202,6 +220,27 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
                     label: f.additional_price > 0 ? `${f.name} (+R$ ${f.additional_price})` : f.name,
                   }))}
                 />
+                {requiredFlavorCount >= 2 && <Select
+                  label="2º Recheio (Obrigatório)"
+                  value={selectedFlavor2}
+                  onChange={(e) => setSelectedFlavor2(e.target.value)}
+                  options={prodFlavors.map((f) => ({
+                    value: f.name,
+                    label: f.additional_price > 0 ? `${f.name} (+R$ ${f.additional_price})` : f.name,
+                  }))}
+                />}
+                {requiredFlavorCount >= 3 && <Select
+                  label="3º Recheio (Obrigatório)"
+                  value={selectedFlavor3}
+                  onChange={(e) => setSelectedFlavor3(e.target.value)}
+                  options={prodFlavors.map((f) => ({
+                    value: f.name,
+                    label: f.additional_price > 0 ? `${f.name} (+R$ ${f.additional_price})` : f.name,
+                  }))}
+                />}
+              </>
+            ) : !isSalgados && requiredFlavorCount >= 2 ? (
+              <>
                 <Select
                   label="2º Recheio (Obrigatório)"
                   value={selectedFlavor2}
@@ -211,6 +250,15 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
                     label: f.additional_price > 0 ? `${f.name} (+R$ ${f.additional_price})` : f.name,
                   }))}
                 />
+                {requiredFlavorCount >= 3 && <Select
+                  label="3º Recheio (Obrigatório)"
+                  value={selectedFlavor3}
+                  onChange={(e) => setSelectedFlavor3(e.target.value)}
+                  options={prodFlavors.map((f) => ({
+                    value: f.name,
+                    label: f.additional_price > 0 ? `${f.name} (+R$ ${f.additional_price})` : f.name,
+                  }))}
+                />}
               </>
             ) : null}
 
@@ -242,6 +290,34 @@ export const OrdersView: React.FC<OrdersViewProps> = ({ data, onChange }) => {
               ]}
             />
           </div>
+
+          {isSalgados && prodFlavors.length > 0 && (
+            <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-2.5">
+              <label className="text-xs font-bold text-[#3D1E26] uppercase tracking-wider flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-[#D81E5B]" />
+                Recheio / Sabores dos Salgados
+              </label>
+              <p className="text-[11px] text-[#7A505D]">Selecione os sabores que compõem este orçamento.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                {prodFlavors.map((flavor) => {
+                  const isChecked = selectedSalgadoFlavors.includes(flavor.name);
+                  return (
+                    <button
+                      key={flavor.id}
+                      type="button"
+                      onClick={() => setSelectedSalgadoFlavors((previous) => isChecked ? previous.filter((name) => name !== flavor.name) : [...previous, flavor.name])}
+                      className={`p-2.5 rounded-xl border text-xs font-medium flex items-center justify-between text-left cursor-pointer transition-colors ${
+                        isChecked ? 'bg-[#FFF0F4] border-[#D81E5B] text-[#D81E5B] shadow-2xs font-semibold' : 'bg-white border-[#FAD0DE] text-[#6B4651] hover:border-[#D81E5B]'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5"><Check className={`w-3.5 h-3.5 ${isChecked ? 'opacity-100 text-[#D81E5B]' : 'opacity-0'}`} />{flavor.name}</span>
+                      <span className="font-bold">{flavor.additional_price > 0 ? `+R$ ${flavor.additional_price.toFixed(2).replace('.', ',')}` : 'Incluso'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Adicionais checkboxes */}
           <div className="p-4 rounded-2xl bg-[#FFF9FB] border border-[#FAD0DE] space-y-2.5">
